@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, Box3D } from "lucide-react";
+import { X, Box } from "lucide-react";
 
 const Gallery = () => {
   const { 
@@ -49,7 +49,7 @@ const Gallery = () => {
           
           <Link to="/gallery3d">
             <Button className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
-              <Box3D size={18} />
+              <Box size={18} />
               View in 3D Gallery
             </Button>
           </Link>
