@@ -49,8 +49,8 @@ const Gallery = () => {
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <div className="w-full md:w-auto">
             <Select
-              value={activeFilters.category || ""}
-              onValueChange={(value) => setFilter("category", value || "")}
+              value={activeFilters.category || "all"}
+              onValueChange={(value) => setFilter("category", value === "all" ? "" : value)}
             >
               <SelectTrigger className="w-full md:w-48">
                 <SelectValue placeholder="Category" />
@@ -68,8 +68,8 @@ const Gallery = () => {
           
           <div className="w-full md:w-auto">
             <Select
-              value={activeFilters.year?.toString() || ""}
-              onValueChange={(value) => setFilter("year", value ? parseInt(value) : null)}
+              value={activeFilters.year?.toString() || "all"}
+              onValueChange={(value) => setFilter("year", value === "all" ? null : parseInt(value))}
             >
               <SelectTrigger className="w-full md:w-48">
                 <SelectValue placeholder="Year" />
@@ -127,7 +127,7 @@ const Gallery = () => {
           <Button onClick={clearFilters}>Reset Filters</Button>
         </div>
       ) : (
-        <div className="gallery-grid">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredArtworks.map((artwork) => (
             <ArtworkCard key={artwork.id} artwork={artwork} />
           ))}

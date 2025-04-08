@@ -13,6 +13,7 @@ import ProfilePage from "./pages/ProfilePage";
 import ArtistsPage from "./pages/ArtistsPage";
 import ArtistDetailPage from "./pages/ArtistDetailPage";
 import ExhibitionsPage from "./pages/ExhibitionsPage";
+import ExhibitionDetailPage from "./pages/ExhibitionDetailPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/artists" element={<ArtistsPage />} />
           <Route path="/artist/:id" element={<ArtistDetailPage />} />
           <Route path="/exhibitions" element={<ExhibitionsPage />} />
+          <Route path="/exhibitions/:id" element={<ExhibitionDetailPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
