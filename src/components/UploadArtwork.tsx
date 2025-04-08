@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { upload, image } from "lucide-react";
+import { Upload, Image } from "lucide-react";
 
 const categories = [
   "Painting",
@@ -253,14 +253,14 @@ const UploadArtwork = ({ artworkToEdit }: { artworkToEdit?: any }) => {
                 {!imagePreview ? (
                   <div className="space-y-4">
                     <div className="mx-auto h-12 w-12 text-gray-400">
-                      <image size={48} />
+                      <Image size={48} />
                     </div>
                     <div className="text-gray-600">
                       <Label
                         htmlFor="image"
                         className="cursor-pointer text-primary hover:text-primary/80 inline-flex items-center"
                       >
-                        <upload className="mr-1 h-4 w-4" />
+                        <Upload className="mr-1 h-4 w-4" />
                         Upload artwork image
                       </Label>
                       <Input
