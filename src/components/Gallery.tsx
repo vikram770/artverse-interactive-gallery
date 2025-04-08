@@ -31,8 +31,11 @@ const Gallery = () => {
     getArtworks();
     
     // Extract unique categories and years
-    const uniqueCategories = [...new Set(artworks.map(art => art.category))];
-    const uniqueYears = [...new Set(artworks.map(art => art.year))].sort((a, b) => b - a);
+    const uniqueCategories = [...new Set(artworks.map(art => art.category))] as string[];
+    const uniqueYears = [...new Set(artworks.map(art => art.year))] as number[];
+    
+    // Sort years in descending order
+    uniqueYears.sort((a, b) => b - a);
     
     setCategories(uniqueCategories);
     setYears(uniqueYears);
