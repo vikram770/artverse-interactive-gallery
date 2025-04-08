@@ -14,6 +14,7 @@ import ArtistsPage from "./pages/ArtistsPage";
 import ArtistDetailPage from "./pages/ArtistDetailPage";
 import ExhibitionsPage from "./pages/ExhibitionsPage";
 import ExhibitionDetailPage from "./pages/ExhibitionDetailPage";
+import GalleryView3D from "./pages/GalleryView3D";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/artist/:id" element={<ArtistDetailPage />} />
           <Route path="/exhibitions" element={<ExhibitionsPage />} />
           <Route path="/exhibitions/:id" element={<ExhibitionDetailPage />} />
+          <Route path="/gallery3d" element={<GalleryView3D />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

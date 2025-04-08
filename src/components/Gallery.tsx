@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useGalleryStore } from "@/lib/store";
+import { Link } from "react-router-dom";
 import ArtworkCard from "./ArtworkCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X } from "lucide-react";
+import { X, Cube } from "lucide-react";
 
 const Gallery = () => {
   const { 
@@ -44,7 +45,16 @@ const Gallery = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold font-display mb-6">Explore Artworks</h1>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <h1 className="text-3xl font-bold font-display">Explore Artworks</h1>
+          
+          <Link to="/gallery3d">
+            <Button className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
+              <Cube size={18} />
+              View in 3D Gallery
+            </Button>
+          </Link>
+        </div>
         
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <div className="w-full md:w-auto">
