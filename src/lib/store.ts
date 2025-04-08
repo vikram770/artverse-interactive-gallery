@@ -1,4 +1,3 @@
-
 import { Artwork, User, Comment } from "@/types";
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -11,6 +10,7 @@ interface AuthState {
   login: (email: string, password: string) => boolean;
   register: (userData: Partial<User>) => boolean;
   logout: () => void;
+  updateUserProfile: (profileData: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -66,6 +66,35 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         set({ currentUser: null, isAuthenticated: false });
         toast.success("Logged out successfully");
+      },
+      updateUserProfile: (profileData: Partial<User>) => {
+        const { currentUser } = get();
+        
+        if (!currentUser) {
+          toast.error("You must be logged in to update your profile");
+          return;
+        }
+        
+        // Get users from localStorage
+        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+        const userIndex = storedUsers.findIndex((u: User) => u.id === currentUser.id);
+        
+        if (userIndex === -1) {
+          toast.error("User not found");
+          return;
+        }
+        
+        // Update user data
+        const updatedUser = {
+          ...currentUser,
+          ...profileData,
+        };
+        
+        storedUsers[userIndex] = updatedUser;
+        localStorage.setItem('users', JSON.stringify(storedUsers));
+        
+        set({ currentUser: updatedUser });
+        toast.success("Profile updated successfully");
       }
     }),
     {
@@ -155,6 +184,8 @@ export const useGalleryStore = create<GalleryState>()(
           views: 0,
           tags: artworkData.tags || [],
           createdAt: new Date().toISOString(),
+          isForSale: artworkData.isForSale || false,
+          price: artworkData.price || "",
         };
         
         const updatedArtworks = [...get().artworks, newArtwork];

@@ -10,6 +10,7 @@ import LoginPage from "./pages/LoginPage";
 import UploadPage from "./pages/UploadPage";
 import EditArtworkPage from "./pages/EditArtworkPage";
 import ProfilePage from "./pages/ProfilePage";
+import EditProfilePage from "./pages/EditProfilePage";
 import ArtistsPage from "./pages/ArtistsPage";
 import ArtistDetailPage from "./pages/ArtistDetailPage";
 import ExhibitionsPage from "./pages/ExhibitionsPage";
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/edit/:id" element={<EditArtworkPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/edit" element={<EditProfilePage />} />
           <Route path="/artists" element={<ArtistsPage />} />
           <Route path="/artist/:id" element={<ArtistDetailPage />} />
           <Route path="/exhibitions" element={<ExhibitionsPage />} />

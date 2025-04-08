@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { upload, image } from "lucide-react";
 
 const categories = [
   "Painting",
@@ -45,9 +46,12 @@ const UploadArtwork = ({ artworkToEdit }: { artworkToEdit?: any }) => {
     year: artworkToEdit?.year || new Date().getFullYear(),
     tags: artworkToEdit?.tags?.join(", ") || "",
     imageUrl: artworkToEdit?.imageUrl || "",
+    isForSale: artworkToEdit?.isForSale || false,
+    price: artworkToEdit?.price || "",
   });
   
   const [imagePreview, setImagePreview] = useState<string | null>(artworkToEdit?.imageUrl || null);
+  const [uploading, setUploading] = useState(false);
   
   // Check if user is authorized to upload
   if (!currentUser) {
@@ -69,13 +73,21 @@ const UploadArtwork = ({ artworkToEdit }: { artworkToEdit?: any }) => {
     const file = e.target.files?.[0];
     
     if (file) {
-      // In a real app, we'd upload to a server here
-      // For our demo, we'll use a local URL
+      // Simulate upload with a delay
+      setUploading(true);
+      
+      // In a real app with Supabase, we'd upload to storage here
+      // For now, we'll use a local URL for demo purposes
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        setImagePreview(result);
-        setFormData({ ...formData, imageUrl: result });
+        
+        // Simulate network delay
+        setTimeout(() => {
+          setImagePreview(result);
+          setFormData({ ...formData, imageUrl: result });
+          setUploading(false);
+        }, 1000);
       };
       reader.readAsDataURL(file);
     }
@@ -94,14 +106,18 @@ const UploadArtwork = ({ artworkToEdit }: { artworkToEdit?: any }) => {
       ...formData,
       tags: formData.tags ? formData.tags.split(",").map(tag => tag.trim()) : [],
       year: parseInt(formData.year.toString()),
+      isForSale: formData.isForSale,
+      price: formData.isForSale ? formData.price : "",
     };
     
     if (isEditMode) {
       updateArtwork(artworkToEdit.id, artwork);
+      toast.success("Artwork updated successfully");
       navigate(`/artwork/${artworkToEdit.id}`);
     } else {
       addArtwork(artwork);
-      navigate("/");
+      toast.success("Artwork uploaded successfully");
+      navigate("/profile");
     }
   };
   
@@ -199,49 +215,114 @@ const UploadArtwork = ({ artworkToEdit }: { artworkToEdit?: any }) => {
                 placeholder="e.g., abstract, nature, modern"
               />
             </div>
+            
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="isForSale"
+                  checked={formData.isForSale}
+                  onChange={(e) => setFormData({ ...formData, isForSale: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="isForSale">This artwork is for sale</Label>
+              </div>
+              
+              {formData.isForSale && (
+                <div className="mt-2">
+                  <Label htmlFor="price">Price ($)</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="Enter price"
+                  />
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="image">Artwork Image *</Label>
-              <Input
-                id="image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="mb-2"
-              />
               
-              {!imagePreview && !isEditMode && (
-                <p className="text-sm text-gray-500">
-                  OR
-                </p>
-              )}
-              
-              {(!imagePreview && !isEditMode) && (
-                <div className="space-y-2 mt-2">
-                  <Label htmlFor="imageUrl">Image URL</Label>
-                  <Input
-                    id="imageUrl"
-                    placeholder="https://example.com/image.jpg"
-                    value={formData.imageUrl}
-                    onChange={(e) => {
-                      setFormData({ ...formData, imageUrl: e.target.value });
-                      setImagePreview(e.target.value);
-                    }}
-                  />
-                </div>
-              )}
-              
-              {imagePreview && (
-                <div className="mt-4 aspect-square max-h-80 overflow-hidden rounded-md bg-gray-100">
-                  <img 
-                    src={imagePreview} 
-                    alt="Preview" 
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              )}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                {!imagePreview ? (
+                  <div className="space-y-4">
+                    <div className="mx-auto h-12 w-12 text-gray-400">
+                      <image size={48} />
+                    </div>
+                    <div className="text-gray-600">
+                      <Label
+                        htmlFor="image"
+                        className="cursor-pointer text-primary hover:text-primary/80 inline-flex items-center"
+                      >
+                        <upload className="mr-1 h-4 w-4" />
+                        Upload artwork image
+                      </Label>
+                      <Input
+                        id="image"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        PNG, JPG, GIF up to 10MB
+                      </p>
+                    </div>
+                    
+                    <div className="text-sm text-gray-500">
+                      or
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="imageUrl">Image URL</Label>
+                      <Input
+                        id="imageUrl"
+                        placeholder="https://example.com/image.jpg"
+                        value={formData.imageUrl}
+                        onChange={(e) => {
+                          setFormData({ ...formData, imageUrl: e.target.value });
+                          setImagePreview(e.target.value);
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <img 
+                      src={imagePreview} 
+                      alt="Preview" 
+                      className="w-full aspect-square object-contain rounded"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+                      onClick={() => {
+                        setImagePreview(null);
+                        setFormData({ ...formData, imageUrl: "" });
+                      }}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                )}
+                
+                {uploading && (
+                  <div className="mt-4">
+                    <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full animate-pulse w-2/3"></div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">Uploading...</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -254,7 +335,11 @@ const UploadArtwork = ({ artworkToEdit }: { artworkToEdit?: any }) => {
           >
             Cancel
           </Button>
-          <Button type="submit">
+          <Button 
+            type="submit" 
+            disabled={uploading || !formData.imageUrl}
+            className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+          >
             {isEditMode ? "Save Changes" : "Upload Artwork"}
           </Button>
         </div>

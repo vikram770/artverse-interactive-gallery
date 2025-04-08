@@ -25,6 +25,8 @@ export interface Artwork {
   views: number;
   tags: string[];
   createdAt: string;
+  isForSale?: boolean;
+  price?: string;
 }
 
 export interface Comment {

@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ArtworkCard from "./ArtworkCard";
-import { Artwork, User } from "@/types";
+import { Artwork } from "@/types";
 import { Heart, Image, MessageSquare } from "lucide-react";
 
 const UserProfile = () => {
