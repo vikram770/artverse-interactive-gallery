@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGalleryStore } from "@/lib/store";
 import UploadArtwork from "./UploadArtwork";
+import { Artwork } from "@/types";
 
 const EditArtwork = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getArtworkById } = useGalleryStore();
-  const [artwork, setArtwork] = useState<any>(null);
+  const [artwork, setArtwork] = useState<Artwork | null>(null);
   
   useEffect(() => {
     if (id) {
