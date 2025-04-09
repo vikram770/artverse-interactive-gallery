@@ -2,7 +2,7 @@
 import { useState, useMemo } from "react";
 import { Artwork } from "@/types";
 
-type SortOption = "newest" | "oldest" | "popular";
+export type SortOption = "newest" | "oldest" | "popular";
 
 export function useSortedArtworks(artworks: Artwork[]) {
   const [sortBy, setSortBy] = useState<SortOption>("newest");
@@ -22,5 +22,12 @@ export function useSortedArtworks(artworks: Artwork[]) {
     });
   }, [artworks, sortBy]);
 
-  return { sortedArtworks, sortBy, setSortBy };
+  const handleSortChange = (value: string) => {
+    // Type assertion to convert string to SortOption, only valid sort options allowed
+    if (value === "newest" || value === "oldest" || value === "popular") {
+      setSortBy(value);
+    }
+  };
+
+  return { sortedArtworks, sortBy, setSortBy: handleSortChange };
 }

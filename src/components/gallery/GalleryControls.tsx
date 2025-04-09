@@ -9,11 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SortOption } from "@/hooks/useSortedArtworks";
 
 interface GalleryControlsProps {
   viewMode: "grid" | "feed";
   setViewMode: (mode: "grid" | "feed") => void;
-  sortBy: string;
+  sortBy: SortOption;
   setSortBy: (sort: string) => void;
 }
 
