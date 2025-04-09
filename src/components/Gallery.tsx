@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useGalleryStore, useAuthStore } from "@/lib/store";
 import { Link } from "react-router-dom";
-import ArtworkCard from "./ArtworkCard";
+import ArtworkFeedItem from "./ArtworkFeedItem";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -29,6 +29,7 @@ const Gallery = () => {
   const [categories, setCategories] = useState<string[]>([]);
   const [years, setYears] = useState<number[]>([]);
   const [sortBy, setSortBy] = useState<string>("newest");
+  const [viewMode, setViewMode] = useState<"grid" | "feed">("feed");
   
   useEffect(() => {
     // Initialize gallery data
@@ -65,7 +66,26 @@ const Gallery = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h1 className="text-3xl font-bold font-display">Explore Artworks</h1>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <div className="flex rounded-md overflow-hidden border">
+              <Button 
+                variant={viewMode === "feed" ? "default" : "ghost"} 
+                size="sm"
+                onClick={() => setViewMode("feed")}
+                className="rounded-none px-3"
+              >
+                Feed
+              </Button>
+              <Button 
+                variant={viewMode === "grid" ? "default" : "ghost"} 
+                size="sm"
+                onClick={() => setViewMode("grid")}
+                className="rounded-none px-3"
+              >
+                Grid
+              </Button>
+            </div>
+            
             <Link to="/gallery3d">
               <Button className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
                 <Box size={18} />
@@ -176,10 +196,16 @@ const Gallery = () => {
           <p className="text-lg text-gray-500 mb-4">No artworks found matching your filters.</p>
           <Button onClick={clearFilters}>Reset Filters</Button>
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {sortedArtworks.map((artwork) => (
             <ArtworkCard key={artwork.id} artwork={artwork} />
+          ))}
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto space-y-8">
+          {sortedArtworks.map((artwork) => (
+            <ArtworkFeedItem key={artwork.id} artwork={artwork} />
           ))}
         </div>
       )}
@@ -188,3 +214,4 @@ const Gallery = () => {
 };
 
 export default Gallery;
+
