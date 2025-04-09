@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,14 @@ const ArtworkImageUploader = ({
   setUploading 
 }: ArtworkImageUploaderProps) => {
   const [imagePreview, setImagePreview] = useState<string | null>(imageUrl || null);
+  const [dragActive, setDragActive] = useState(false);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    
+    processFile(file);
+  };
+
+  const processFile = (file: File | undefined) => {
     if (file) {
       // Simulate upload with a delay
       setUploading(true);
@@ -44,11 +48,41 @@ const ArtworkImageUploader = ({
     }
   };
 
+  // Handle drag events
+  const handleDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  }, []);
+
+  // Handle drop event
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      processFile(file);
+    }
+  }, []);
+
   return (
     <div className="space-y-2">
       <Label htmlFor="image">Artwork Image *</Label>
       
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+      <div 
+        className={`border-2 ${dragActive ? 'border-primary' : 'border-dashed border-gray-300'} rounded-lg p-6 text-center transition-colors duration-200`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
         {!imagePreview ? (
           <div className="space-y-4">
             <div className="mx-auto h-12 w-12 text-gray-400">
@@ -71,6 +105,9 @@ const ArtworkImageUploader = ({
               />
               <p className="text-xs text-gray-500 mt-1">
                 PNG, JPG, GIF up to 10MB
+              </p>
+              <p className="text-sm mt-2">
+                or drag and drop your file here
               </p>
             </div>
             
