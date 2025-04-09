@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useGalleryStore, useAuthStore } from "@/lib/store";
 import { Link } from "react-router-dom";
 import ArtworkFeedItem from "./ArtworkFeedItem";
+import ArtworkCard from "./ArtworkCard"; // Add this import for ArtworkCard
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
