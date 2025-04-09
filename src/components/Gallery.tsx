@@ -1,5 +1,6 @@
+
 import { useEffect, useState } from "react";
-import { useGalleryStore } from "@/lib/store";
+import { useGalleryStore, useAuthStore } from "@/lib/store";
 import { Link } from "react-router-dom";
 import ArtworkCard from "./ArtworkCard";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, Box } from "lucide-react";
+import { X, Box, Clock } from "lucide-react";
 
 const Gallery = () => {
   const { 
@@ -23,8 +24,11 @@ const Gallery = () => {
     clearFilters
   } = useGalleryStore();
   
+  const { currentUser } = useAuthStore();
+  
   const [categories, setCategories] = useState<string[]>([]);
   const [years, setYears] = useState<number[]>([]);
+  const [sortBy, setSortBy] = useState<string>("newest");
   
   useEffect(() => {
     // Initialize gallery data
@@ -41,18 +45,34 @@ const Gallery = () => {
     setYears(uniqueYears);
   }, [artworks.length, getArtworks]);
   
+  // Sort artworks based on selected option
+  const sortedArtworks = [...filteredArtworks].sort((a, b) => {
+    switch (sortBy) {
+      case "newest":
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case "oldest":
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case "popular":
+        return b.likes - a.likes;
+      default:
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+  });
+  
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h1 className="text-3xl font-bold font-display">Explore Artworks</h1>
           
-          <Link to="/gallery3d">
-            <Button className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
-              <Box size={18} />
-              View in 3D Gallery
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/gallery3d">
+              <Button className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
+                <Box size={18} />
+                View in 3D Gallery
+              </Button>
+            </Link>
+          </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-4 mb-6">
@@ -90,6 +110,27 @@ const Gallery = () => {
                     {year}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="w-full md:w-auto">
+            <Select
+              value={sortBy}
+              onValueChange={(value) => setSortBy(value)}
+            >
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">
+                  <div className="flex items-center gap-2">
+                    <Clock size={16} />
+                    Newest First
+                  </div>
+                </SelectItem>
+                <SelectItem value="oldest">Oldest First</SelectItem>
+                <SelectItem value="popular">Most Popular</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -137,7 +178,7 @@ const Gallery = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {filteredArtworks.map((artwork) => (
+          {sortedArtworks.map((artwork) => (
             <ArtworkCard key={artwork.id} artwork={artwork} />
           ))}
         </div>

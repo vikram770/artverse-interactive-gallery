@@ -1,13 +1,13 @@
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore, useGalleryStore } from "@/lib/store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ArtworkCard from "./ArtworkCard";
 import { Artwork } from "@/types";
-import { Heart, Image, MessageSquare } from "lucide-react";
+import { Heart, Image, MessageSquare, PlusCircle } from "lucide-react";
 
 const UserProfile = () => {
   const navigate = useNavigate();
@@ -76,7 +76,11 @@ const UserProfile = () => {
             
             <div className="flex flex-wrap justify-center md:justify-start gap-2">
               {currentUser.role === "artist" && (
-                <Button onClick={() => navigate("/upload")}>
+                <Button 
+                  onClick={() => navigate("/upload")}
+                  className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" />
                   Upload New Artwork
                 </Button>
               )}
@@ -92,10 +96,10 @@ const UserProfile = () => {
           </div>
         </div>
         
-        <Tabs defaultValue="liked">
+        <Tabs defaultValue={currentUser.role === "artist" ? "uploaded" : "liked"}>
           <TabsList className="w-full grid grid-cols-2">
             <TabsTrigger value="liked">Liked Artworks</TabsTrigger>
-            {currentUser.role === "artist" && (
+            {(currentUser.role === "artist" || currentUser.role === "admin") && (
               <TabsTrigger value="uploaded">My Artworks</TabsTrigger>
             )}
           </TabsList>
@@ -111,7 +115,7 @@ const UserProfile = () => {
                 <Button onClick={() => navigate("/")}>Explore Gallery</Button>
               </div>
             ) : (
-              <div className="gallery-grid">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {likedArtworks.map((artwork) => (
                   <ArtworkCard key={artwork.id} artwork={artwork} />
                 ))}
@@ -119,7 +123,7 @@ const UserProfile = () => {
             )}
           </TabsContent>
           
-          {currentUser.role === "artist" && (
+          {(currentUser.role === "artist" || currentUser.role === "admin") && (
             <TabsContent value="uploaded" className="py-6">
               {userArtworks.length === 0 ? (
                 <div className="text-center py-12">
@@ -128,13 +132,32 @@ const UserProfile = () => {
                   <p className="text-gray-500 mb-4">
                     Share your creative work with the world.
                   </p>
-                  <Button onClick={() => navigate("/upload")}>Upload Artwork</Button>
+                  <Button 
+                    onClick={() => navigate("/upload")}
+                    className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Upload Artwork
+                  </Button>
                 </div>
               ) : (
-                <div className="gallery-grid">
-                  {userArtworks.map((artwork) => (
-                    <ArtworkCard key={artwork.id} artwork={artwork} />
-                  ))}
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-semibold">Your Artwork Gallery</h2>
+                    <Button 
+                      size="sm" 
+                      onClick={() => navigate("/upload")}
+                      className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      Add New
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                    {userArtworks.map((artwork) => (
+                      <ArtworkCard key={artwork.id} artwork={artwork} />
+                    ))}
+                  </div>
                 </div>
               )}
             </TabsContent>
