@@ -1,16 +1,11 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useGalleryStore } from "@/lib/store";
+import CategoryFilter from "./CategoryFilter";
+import YearFilter from "./YearFilter";
+import FilterBadge from "./FilterBadge";
 
 const GalleryFilters = () => {
   const { 
@@ -35,78 +30,54 @@ const GalleryFilters = () => {
     setYears(uniqueYears);
   }, [artworks]);
   
+  const handleCategoryChange = (value: string) => {
+    setFilter("category", value);
+  };
+
+  const handleYearChange = (value: number | null) => {
+    setFilter("year", value);
+  };
+
+  const hasActiveFilters = activeFilters.category || activeFilters.year;
+  
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4 mb-6">
-        <div className="w-full md:w-auto">
-          <Select
-            value={activeFilters.category || "all"}
-            onValueChange={(value) => setFilter("category", value === "all" ? "" : value)}
-          >
-            <SelectTrigger className="w-full md:w-48">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories.map(category => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <CategoryFilter 
+          selectedCategory={activeFilters.category} 
+          categories={categories} 
+          onChange={handleCategoryChange} 
+        />
         
-        <div className="w-full md:w-auto">
-          <Select
-            value={activeFilters.year?.toString() || "all"}
-            onValueChange={(value) => setFilter("year", value === "all" ? null : parseInt(value))}
-          >
-            <SelectTrigger className="w-full md:w-48">
-              <SelectValue placeholder="Year" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Years</SelectItem>
-              {years.map(year => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <YearFilter 
+          selectedYear={activeFilters.year?.toString() || null} 
+          years={years} 
+          onChange={handleYearChange} 
+        />
         
-        {(activeFilters.category || activeFilters.year) && (
+        {hasActiveFilters && (
           <Button variant="ghost" onClick={clearFilters} className="flex items-center text-gray-500">
             <X className="mr-1 h-4 w-4" /> Clear Filters
           </Button>
         )}
       </div>
       
-      {(activeFilters.category || activeFilters.year) && (
+      {hasActiveFilters && (
         <div className="flex flex-wrap gap-2 mb-4">
           <span className="text-sm text-gray-500">Active filters:</span>
           {activeFilters.category && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              Category: {activeFilters.category}
-              <button 
-                onClick={() => setFilter("category", "")}
-                className="ml-1 hover:text-gray-800"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterBadge
+              label="Category"
+              value={activeFilters.category}
+              onRemove={() => setFilter("category", "")}
+            />
           )}
           {activeFilters.year && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              Year: {activeFilters.year}
-              <button 
-                onClick={() => setFilter("year", null)}
-                className="ml-1 hover:text-gray-800"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterBadge
+              label="Year"
+              value={activeFilters.year}
+              onRemove={() => setFilter("year", null)}
+            />
           )}
         </div>
       )}
