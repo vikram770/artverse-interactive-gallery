@@ -28,6 +28,12 @@ interface NotificationState {
   setupRealtimeNotifications: () => () => void;
 }
 
+// Define an interface for the profile data
+interface ProfileData {
+  username?: string;
+  avatar?: string;
+}
+
 export const useNotificationStore = create<NotificationState>()(
   persist(
     (set, get) => ({
@@ -60,8 +66,8 @@ export const useNotificationStore = create<NotificationState>()(
           if (error) throw error;
           
           const notifications: Notification[] = (data || []).map(item => {
-            // Extract profile data properly - it's an object, not an array
-            const profile = item.profiles || {};
+            // Cast profile data to the proper type with safeguards
+            const profileData: ProfileData = (item.profiles as ProfileData) || {};
             
             return {
               id: item.id,
@@ -70,9 +76,9 @@ export const useNotificationStore = create<NotificationState>()(
               content: item.content,
               artworkId: item.artwork_id,
               senderId: item.sender_id,
-              // Use optional chaining with fallback for TypeScript safety
-              senderName: profile?.username as string || 'Unknown User',
-              senderAvatar: profile?.avatar as string | undefined,
+              // Use the defined properties with fallbacks
+              senderName: profileData.username || 'Unknown User',
+              senderAvatar: profileData.avatar,
               isRead: item.is_read,
               createdAt: item.created_at
             };
@@ -172,8 +178,8 @@ export const useNotificationStore = create<NotificationState>()(
                 return;
               }
               
-              // Extract profile data properly - it's an object, not an array
-              const profile = data.profiles || {};
+              // Cast profile data to the proper type with safeguards
+              const profileData: ProfileData = (data.profiles as ProfileData) || {};
               
               const newNotification: Notification = {
                 id: data.id,
@@ -182,9 +188,9 @@ export const useNotificationStore = create<NotificationState>()(
                 content: data.content,
                 artworkId: data.artwork_id,
                 senderId: data.sender_id,
-                // Use optional chaining with fallback for TypeScript safety
-                senderName: profile?.username as string || 'Unknown User',
-                senderAvatar: profile?.avatar as string | undefined,
+                // Use the defined properties with fallbacks
+                senderName: profileData.username || 'Unknown User',
+                senderAvatar: profileData.avatar,
                 isRead: data.is_read,
                 createdAt: data.created_at
               };
