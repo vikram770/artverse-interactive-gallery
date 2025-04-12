@@ -1,18 +1,19 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuthStore } from "@/lib/store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const EditProfile = () => {
   const navigate = useNavigate();
-  const { currentUser, updateUserProfile } = useAuthStore();
   
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
   const [formData, setFormData] = useState({
     username: "",
     bio: "",
@@ -22,25 +23,53 @@ const EditProfile = () => {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   
   useEffect(() => {
-    if (!currentUser) {
-      navigate("/login");
-      return;
-    }
+    const getProfile = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          navigate("/login");
+          return;
+        }
+        
+        setUser(session.user);
+        
+        // Fetch profile data
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (error) {
+          console.error("Error fetching profile:", error);
+          toast.error("Error fetching profile data");
+          return;
+        }
+        
+        setFormData({
+          username: profile.username || "",
+          bio: profile.bio || "",
+          avatar: profile.avatar || "",
+        });
+        
+        setAvatarPreview(profile.avatar || null);
+      } catch (error) {
+        console.error("Profile fetch error:", error);
+        toast.error("Error loading profile");
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    setFormData({
-      username: currentUser.username || "",
-      bio: currentUser.bio || "",
-      avatar: currentUser.avatar || "",
-    });
-    
-    setAvatarPreview(currentUser.avatar || null);
-  }, [currentUser, navigate]);
+    getProfile();
+  }, [navigate]);
   
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     
     if (file) {
-      // In a real app with Supabase, we'd upload to storage here
+      // In a future implementation, we would upload to Supabase storage
       // For now, we'll use a local URL for demo purposes
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -52,7 +81,7 @@ const EditProfile = () => {
     }
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate form
@@ -61,16 +90,42 @@ const EditProfile = () => {
       return;
     }
     
-    // Update profile
-    updateUserProfile({
-      ...formData
-    });
+    if (!user) {
+      toast.error("You must be logged in to update your profile");
+      return;
+    }
     
-    toast.success("Profile updated successfully");
-    navigate("/profile");
+    setLoading(true);
+    
+    try {
+      // Update profile in Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          username: formData.username,
+          bio: formData.bio,
+          avatar: formData.avatar,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast.success("Profile updated successfully");
+      navigate("/profile");
+    } catch (error: any) {
+      console.error("Profile update error:", error);
+      toast.error(error.message || "Error updating profile");
+    } finally {
+      setLoading(false);
+    }
   };
   
-  if (!currentUser) return null;
+  if (loading && !user) {
+    return <div className="py-12 text-center">Loading...</div>;
+  }
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -94,6 +149,7 @@ const EditProfile = () => {
                   type="file"
                   accept="image/*"
                   onChange={handleAvatarChange}
+                  disabled={loading}
                 />
                 
                 {!avatarPreview && (
@@ -107,6 +163,7 @@ const EditProfile = () => {
                         setFormData({ ...formData, avatar: e.target.value });
                         setAvatarPreview(e.target.value);
                       }}
+                      disabled={loading}
                     />
                   </div>
                 )}
@@ -121,6 +178,7 @@ const EditProfile = () => {
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   required
+                  disabled={loading}
                 />
               </div>
               
@@ -132,6 +190,7 @@ const EditProfile = () => {
                   onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                   placeholder="Tell us about yourself..."
                   rows={5}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -142,10 +201,13 @@ const EditProfile = () => {
               type="button" 
               variant="outline" 
               onClick={() => navigate("/profile")}
+              disabled={loading}
             >
               Cancel
             </Button>
-            <Button type="submit">Save Changes</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Saving..." : "Save Changes"}
+            </Button>
           </div>
         </form>
       </div>

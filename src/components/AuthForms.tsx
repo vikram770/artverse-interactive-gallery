@@ -1,7 +1,6 @@
 
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuthStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,17 +25,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuthStore } from "@/lib/store";
 
 const AuthForms = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register } = useAuthStore();
+  const { getArtworks } = useAuthStore();
   
   // Check if we should default to register tab
   const queryParams = new URLSearchParams(location.search);
   const defaultTab = queryParams.get("register") ? "register" : "login";
   
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Login form state
   const [loginData, setLoginData] = useState({
@@ -57,54 +60,91 @@ const AuthForms = () => {
   const [loginError, setLoginError] = useState("");
   const [registerError, setRegisterError] = useState("");
   
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
+    setIsLoading(true);
     
     const { email, password } = loginData;
     
     if (!email || !password) {
       setLoginError("Please fill in all fields");
+      setIsLoading(false);
       return;
     }
     
-    const success = login(email, password);
-    
-    if (success) {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) {
+        console.error("Login error:", error);
+        setLoginError(error.message);
+        return;
+      }
+      
+      toast.success("Logged in successfully!");
       navigate("/");
+    } catch (error) {
+      console.error("Login error:", error);
+      setLoginError("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
     }
   };
   
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterError("");
+    setIsLoading(true);
     
     const { username, email, password, confirmPassword, role } = registerData;
     
     if (!username || !email || !password || !confirmPassword) {
       setRegisterError("Please fill in all fields");
+      setIsLoading(false);
       return;
     }
     
     if (password !== confirmPassword) {
       setRegisterError("Passwords do not match");
+      setIsLoading(false);
       return;
     }
     
     if (password.length < 6) {
       setRegisterError("Password must be at least 6 characters");
+      setIsLoading(false);
       return;
     }
     
-    const success = register({
-      username,
-      email,
-      password,
-      role,
-    });
-    
-    if (success) {
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+            role,
+          }
+        }
+      });
+      
+      if (error) {
+        console.error("Registration error:", error);
+        setRegisterError(error.message);
+        return;
+      }
+      
+      toast.success("Registration successful! Please check your email for verification.");
       navigate("/");
+    } catch (error) {
+      console.error("Registration error:", error);
+      setRegisterError("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -136,6 +176,7 @@ const AuthForms = () => {
                     onChange={(e) => 
                       setLoginData({ ...loginData, email: e.target.value })
                     }
+                    disabled={isLoading}
                   />
                 </div>
                 
@@ -153,6 +194,7 @@ const AuthForms = () => {
                     onChange={(e) => 
                       setLoginData({ ...loginData, password: e.target.value })
                     }
+                    disabled={isLoading}
                   />
                 </div>
                 
@@ -162,8 +204,8 @@ const AuthForms = () => {
               </CardContent>
               
               <CardFooter>
-                <Button type="submit" className="w-full">
-                  Login
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Logging in..." : "Login"}
                 </Button>
               </CardFooter>
             </form>
@@ -189,6 +231,7 @@ const AuthForms = () => {
                     onChange={(e) => 
                       setRegisterData({ ...registerData, username: e.target.value })
                     }
+                    disabled={isLoading}
                   />
                 </div>
                 
@@ -202,6 +245,7 @@ const AuthForms = () => {
                     onChange={(e) => 
                       setRegisterData({ ...registerData, email: e.target.value })
                     }
+                    disabled={isLoading}
                   />
                 </div>
                 
@@ -214,6 +258,7 @@ const AuthForms = () => {
                     onChange={(e) => 
                       setRegisterData({ ...registerData, password: e.target.value })
                     }
+                    disabled={isLoading}
                   />
                 </div>
                 
@@ -226,6 +271,7 @@ const AuthForms = () => {
                     onChange={(e) => 
                       setRegisterData({ ...registerData, confirmPassword: e.target.value })
                     }
+                    disabled={isLoading}
                   />
                 </div>
                 
@@ -236,6 +282,7 @@ const AuthForms = () => {
                     onValueChange={(value: "visitor" | "artist" | "admin") => 
                       setRegisterData({ ...registerData, role: value })
                     }
+                    disabled={isLoading}
                   >
                     <SelectTrigger id="role">
                       <SelectValue placeholder="Select your role" />
@@ -253,8 +300,8 @@ const AuthForms = () => {
               </CardContent>
               
               <CardFooter>
-                <Button type="submit" className="w-full">
-                  Register
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Registering..." : "Register"}
                 </Button>
               </CardFooter>
             </form>

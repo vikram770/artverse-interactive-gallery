@@ -1,41 +1,105 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuthStore, useGalleryStore } from "@/lib/store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ArtworkCard from "./ArtworkCard";
 import { Artwork } from "@/types";
-import { Heart, Image, MessageSquare, PlusCircle } from "lucide-react";
+import { Heart, Image, MessageSquare, PlusCircle, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useGalleryStore } from "@/lib/store";
 
 const UserProfile = () => {
   const navigate = useNavigate();
-  const { currentUser, logout } = useAuthStore();
   const { getArtworksByArtist, artworks } = useGalleryStore();
   
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [userArtworks, setUserArtworks] = useState<Artwork[]>([]);
   const [likedArtworks, setLikedArtworks] = useState<Artwork[]>([]);
   
   useEffect(() => {
-    if (!currentUser) {
-      navigate("/login");
-      return;
-    }
+    // Check current authentication status
+    const checkUser = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          navigate("/login");
+          return;
+        }
+        
+        setUser(session.user);
+        
+        // Fetch user profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (profileError) {
+          console.error("Error fetching profile:", profileError);
+          toast.error("Error fetching your profile");
+        } else {
+          setProfile(profileData);
+          
+          if (profileData.role === "artist" || profileData.role === "admin") {
+            const artistWorks = getArtworksByArtist(session.user.id);
+            setUserArtworks(artistWorks);
+          }
+          
+          // Get liked artworks - will need to be updated when we integrate likes with Supabase
+          const userLikes = [];
+          const liked = artworks.filter(artwork => userLikes.includes(artwork.id));
+          setLikedArtworks(liked);
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
+        toast.error("Authentication error");
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    if (currentUser.role === "artist" || currentUser.role === "admin") {
-      const artistWorks = getArtworksByArtist(currentUser.id);
-      setUserArtworks(artistWorks);
-    }
+    checkUser();
     
-    // Get liked artworks
-    const userLikes = currentUser.likedArtworks || [];
-    const liked = artworks.filter(artwork => userLikes.includes(artwork.id));
-    setLikedArtworks(liked);
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === "SIGNED_OUT") {
+          navigate("/login");
+        } else if (session?.user) {
+          setUser(session.user);
+        }
+      }
+    );
     
-  }, [currentUser, getArtworksByArtist, artworks, navigate]);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate, getArtworksByArtist, artworks]);
   
-  if (!currentUser) {
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      toast.success("Logged out successfully");
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Error during logout");
+    }
+  };
+  
+  if (loading) {
+    return <div className="py-12 text-center">Loading...</div>;
+  }
+  
+  if (!user || !profile) {
     return null;
   }
   
@@ -44,29 +108,29 @@ const UserProfile = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10">
           <Avatar className="w-24 h-24">
-            <AvatarImage src={currentUser.avatar} alt={currentUser.username} />
+            <AvatarImage src={profile.avatar} alt={profile.username} />
             <AvatarFallback className="text-2xl">
-              {currentUser.username.slice(0, 2).toUpperCase()}
+              {profile.username?.slice(0, 2).toUpperCase() || user.email?.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1 text-center md:text-left">
-            <h1 className="text-2xl font-bold mb-2">{currentUser.username}</h1>
+            <h1 className="text-2xl font-bold mb-2">{profile.username || user.email}</h1>
             <p className="text-gray-500 mb-2">
-              {currentUser.role === "artist" ? "Artist" : "Art Enthusiast"}
+              {profile.role === "artist" ? "Artist" : "Art Enthusiast"}
             </p>
             
-            {currentUser.bio && (
-              <p className="text-gray-700 mb-4">{currentUser.bio}</p>
+            {profile.bio && (
+              <p className="text-gray-700 mb-4">{profile.bio}</p>
             )}
             
             <div className="flex flex-wrap justify-center md:justify-start gap-4 mb-4">
               <div className="flex items-center">
                 <Heart className="mr-2 h-4 w-4 text-gray-500" />
-                <span>{currentUser.likedArtworks?.length || 0} Likes</span>
+                <span>0 Likes</span>
               </div>
               
-              {currentUser.role === "artist" && (
+              {profile.role === "artist" && (
                 <div className="flex items-center">
                   <Image className="mr-2 h-4 w-4 text-gray-500" />
                   <span>{userArtworks.length} Artworks</span>
@@ -75,7 +139,7 @@ const UserProfile = () => {
             </div>
             
             <div className="flex flex-wrap justify-center md:justify-start gap-2">
-              {currentUser.role === "artist" && (
+              {profile.role === "artist" && (
                 <Button 
                   onClick={() => navigate("/upload")}
                   className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
@@ -89,17 +153,18 @@ const UserProfile = () => {
                 Edit Profile
               </Button>
               
-              <Button variant="ghost" onClick={logout}>
+              <Button variant="ghost" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
                 Logout
               </Button>
             </div>
           </div>
         </div>
         
-        <Tabs defaultValue={currentUser.role === "artist" ? "uploaded" : "liked"}>
+        <Tabs defaultValue={profile.role === "artist" ? "uploaded" : "liked"}>
           <TabsList className="w-full grid grid-cols-2">
             <TabsTrigger value="liked">Liked Artworks</TabsTrigger>
-            {(currentUser.role === "artist" || currentUser.role === "admin") && (
+            {(profile.role === "artist" || profile.role === "admin") && (
               <TabsTrigger value="uploaded">My Artworks</TabsTrigger>
             )}
           </TabsList>
@@ -123,7 +188,7 @@ const UserProfile = () => {
             )}
           </TabsContent>
           
-          {(currentUser.role === "artist" || currentUser.role === "admin") && (
+          {(profile.role === "artist" || profile.role === "admin") && (
             <TabsContent value="uploaded" className="py-6">
               {userArtworks.length === 0 ? (
                 <div className="text-center py-12">
