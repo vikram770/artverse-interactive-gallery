@@ -14,34 +14,50 @@ const ArtistDetail = () => {
   
   const [artist, setArtist] = useState<Artist | null>(null);
   const [artistArtworks, setArtistArtworks] = useState<Artwork[]>([]);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     if (!id) return;
     
     // Load artist from localStorage
-    const loadArtist = () => {
-      const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-      const foundArtist = storedUsers.find((user: Artist) => user.id === id && user.role === 'artist');
-      
-      if (foundArtist) {
-        setArtist(foundArtist);
+    const loadArtist = async () => {
+      try {
+        setLoading(true);
+        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+        const foundArtist = storedUsers.find((user: Artist) => user.id === id && user.role === 'artist');
         
-        // Get artist's artworks
-        const artworks = getArtworksByArtist(id);
-        setArtistArtworks(artworks);
-      } else {
-        // Artist not found, redirect to 404
-        navigate("/not-found", { replace: true });
+        if (foundArtist) {
+          setArtist(foundArtist);
+          
+          // Get artist's artworks
+          const artworks = await getArtworksByArtist(id);
+          setArtistArtworks(artworks);
+        } else {
+          // Artist not found, redirect to 404
+          navigate("/not-found", { replace: true });
+        }
+      } catch (error) {
+        console.error("Error loading artist:", error);
+      } finally {
+        setLoading(false);
       }
     };
     
     loadArtist();
   }, [id, getArtworksByArtist, navigate]);
   
-  if (!artist) {
+  if (loading) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <p>Loading artist...</p>
+      </div>
+    );
+  }
+  
+  if (!artist) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <p>Artist not found</p>
       </div>
     );
   }

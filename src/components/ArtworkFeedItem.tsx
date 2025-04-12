@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Artwork } from "@/types";
+import { Artwork, Comment } from "@/types";
 import { useAuthStore, useGalleryStore } from "@/lib/store";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import ArtworkHeader from "./artwork/ArtworkHeader";
@@ -17,8 +17,9 @@ const ArtworkFeedItem = ({ artwork }: ArtworkFeedItemProps) => {
   const { currentUser } = useAuthStore();
   const { toggleLike, getCommentsByArtworkId, addComment } = useGalleryStore();
   
-  const [comments, setComments] = useState([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [artistName, setArtistName] = useState("Unknown Artist");
+  const [loading, setLoading] = useState(false);
   
   const isLiked = currentUser?.likedArtworks.includes(artwork.id) || false;
   
@@ -37,19 +38,31 @@ const ArtworkFeedItem = ({ artwork }: ArtworkFeedItemProps) => {
     toggleLike(artwork.id);
   };
   
-  const handleCommentClick = () => {
-    const artworkComments = getCommentsByArtworkId(artwork.id);
-    setComments(artworkComments);
+  const handleCommentClick = async () => {
+    setLoading(true);
+    try {
+      const artworkComments = await getCommentsByArtworkId(artwork.id);
+      setComments(artworkComments);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const handleAddComment = (text: string) => {
-    addComment({
-      artworkId: artwork.id,
-      text: text
-    });
-    
-    // Refresh comments
-    setComments(getCommentsByArtworkId(artwork.id));
+  const handleAddComment = async (text: string) => {
+    try {
+      await addComment({
+        artworkId: artwork.id,
+        text: text
+      });
+      
+      // Refresh comments
+      const updatedComments = await getCommentsByArtworkId(artwork.id);
+      setComments(updatedComments);
+    } catch (error) {
+      console.error("Error adding comment:", error);
+    }
   };
   
   return (
@@ -88,12 +101,18 @@ const ArtworkFeedItem = ({ artwork }: ArtworkFeedItemProps) => {
           tags={artwork.tags}
         />
         
-        <CommentSection 
-          artworkId={artwork.id}
-          currentUser={currentUser}
-          comments={comments}
-          onAddComment={handleAddComment}
-        />
+        {loading ? (
+          <div className="py-2 text-center">
+            <p className="text-sm text-gray-500">Loading comments...</p>
+          </div>
+        ) : (
+          <CommentSection 
+            artworkId={artwork.id}
+            currentUser={currentUser}
+            comments={comments}
+            onAddComment={handleAddComment}
+          />
+        )}
       </CardContent>
     </Card>
   );

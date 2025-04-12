@@ -10,24 +10,45 @@ const EditArtwork = () => {
   const navigate = useNavigate();
   const { getArtworkById } = useGalleryStore();
   const [artwork, setArtwork] = useState<Artwork | null>(null);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     if (id) {
-      const foundArtwork = getArtworkById(id);
+      const fetchArtwork = async () => {
+        try {
+          setLoading(true);
+          const foundArtwork = await getArtworkById(id);
+          
+          if (foundArtwork) {
+            setArtwork(foundArtwork);
+          } else {
+            // Artwork not found, redirect to 404
+            navigate("/not-found", { replace: true });
+          }
+        } catch (error) {
+          console.error("Error fetching artwork:", error);
+          navigate("/not-found", { replace: true });
+        } finally {
+          setLoading(false);
+        }
+      };
       
-      if (foundArtwork) {
-        setArtwork(foundArtwork);
-      } else {
-        // Artwork not found, redirect to 404
-        navigate("/not-found", { replace: true });
-      }
+      fetchArtwork();
     }
   }, [id, getArtworkById, navigate]);
+  
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
   
   if (!artwork) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
-        <p>Loading...</p>
+        <p>Artwork not found</p>
       </div>
     );
   }

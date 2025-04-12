@@ -406,7 +406,7 @@ const Gallery3D = ({ artworks }: Gallery3DProps) => {
     window.addEventListener("keyup", handleKeyUp);
     
     // Handle click events for artwork interaction
-    const handleClick = (event: MouseEvent) => {
+    const handleClick = async (event: MouseEvent) => {
       if (!sceneRef.current || !cameraRef.current) return;
       
       // Calculate mouse position in normalized device coordinates
@@ -431,10 +431,15 @@ const Gallery3D = ({ artworks }: Gallery3DProps) => {
         for (const { mesh, artwork } of frameObjectsRef.current) {
           if (intersects[0].object.parent === mesh || mesh.children.includes(intersects[0].object)) {
             setActiveArtwork(artwork);
-            const selectedArtwork = getArtworkById(artwork.id);
-            if (selectedArtwork) {
-              toast.info("Opening " + selectedArtwork.title);
-              navigate(`/artwork/${artwork.id}`);
+            try {
+              const selectedArtwork = await getArtworkById(artwork.id);
+              if (selectedArtwork) {
+                toast.info("Opening " + selectedArtwork.title);
+                navigate(`/artwork/${artwork.id}`);
+              }
+            } catch (error) {
+              console.error("Error fetching artwork details:", error);
+              toast.error("Could not open artwork details");
             }
             break;
           }
