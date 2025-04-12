@@ -70,8 +70,9 @@ export const useNotificationStore = create<NotificationState>()(
               content: item.content,
               artworkId: item.artwork_id,
               senderId: item.sender_id,
-              senderName: profile.username || 'Unknown User',
-              senderAvatar: profile.avatar,
+              // Use optional chaining with fallback for TypeScript safety
+              senderName: profile?.username as string || 'Unknown User',
+              senderAvatar: profile?.avatar as string | undefined,
               isRead: item.is_read,
               createdAt: item.created_at
             };
@@ -181,8 +182,9 @@ export const useNotificationStore = create<NotificationState>()(
                 content: data.content,
                 artworkId: data.artwork_id,
                 senderId: data.sender_id,
-                senderName: profile.username || 'Unknown User',
-                senderAvatar: profile.avatar,
+                // Use optional chaining with fallback for TypeScript safety
+                senderName: profile?.username as string || 'Unknown User',
+                senderAvatar: profile?.avatar as string | undefined,
                 isRead: data.is_read,
                 createdAt: data.created_at
               };
