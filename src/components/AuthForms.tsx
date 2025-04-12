@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/lib/store";
 
 const AuthForms = () => {
@@ -81,7 +80,6 @@ const AuthForms = () => {
     }
     
     try {
-      // Use the login method from auth store instead of direct Supabase call
       const success = await login(email, password);
       
       if (success) {
@@ -124,7 +122,6 @@ const AuthForms = () => {
     }
     
     try {
-      // Use the register method from auth store
       const success = await register({
         username,
         email,
@@ -133,8 +130,10 @@ const AuthForms = () => {
       });
       
       if (success) {
-        toast.success("Registration successful! Please check your email for verification.");
+        toast.success("Registration successful!");
         navigate("/");
+      } else {
+        setRegisterError("Registration failed. Please try again.");
       }
     } catch (error: any) {
       console.error("Registration error:", error);

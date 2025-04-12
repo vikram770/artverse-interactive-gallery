@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { initializeAuth } from './lib/store.ts'
+import { toast } from 'sonner'
 
 // Initialize auth before rendering to avoid flashing of unauthenticated state
 // Also ensures proper error handling if auth init fails
@@ -26,7 +27,6 @@ initializeAuth()
     
     // Show error toast after the app is rendered
     setTimeout(() => {
-      const { toast } = require('sonner');
       toast.error("Failed to initialize authentication. Please try again later.");
     }, 1000);
   });
