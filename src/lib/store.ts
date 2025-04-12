@@ -1,16 +1,17 @@
+
 import { Artwork, User, Comment } from "@/types";
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { toast } from "sonner";
-import { artworks, users, comments } from "./data";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AuthState {
   currentUser: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => boolean;
-  register: (userData: Partial<User>) => boolean;
-  logout: () => void;
-  updateUserProfile: (profileData: Partial<User>) => void;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (userData: Partial<User>) => Promise<boolean>;
+  logout: () => Promise<void>;
+  updateUserProfile: (profileData: Partial<User>) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -18,56 +19,104 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       currentUser: null,
       isAuthenticated: false,
-      login: (email: string, password: string) => {
-        // Get users from localStorage
-        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-        
-        const user = storedUsers.find(
-          (u: User) => u.email === email && u.password === password
-        );
-        
-        if (user) {
-          set({ currentUser: user, isAuthenticated: true });
-          toast.success("Logged in successfully!");
-          return true;
-        }
-        
-        toast.error("Invalid email or password");
-        return false;
-      },
-      register: (userData: Partial<User>) => {
-        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-        
-        // Check if user with this email already exists
-        if (storedUsers.some((u: User) => u.email === userData.email)) {
-          toast.error("User with this email already exists");
+      login: async (email: string, password: string) => {
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (error) throw error;
+          
+          if (data.user) {
+            // Get the user profile
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .single();
+            
+            const currentUser: User = {
+              id: data.user.id,
+              email: data.user.email || '',
+              username: profile?.username || data.user.email?.split('@')[0] || '',
+              password: '', // We don't store passwords
+              role: profile?.role || 'visitor',
+              avatar: profile?.avatar || '',
+              bio: profile?.bio || '',
+              createdAt: data.user.created_at || new Date().toISOString(),
+              likedArtworks: []
+            };
+            
+            set({ currentUser, isAuthenticated: true });
+            toast.success("Logged in successfully!");
+            return true;
+          }
+          
+          return false;
+        } catch (error: any) {
+          console.error('Login error:', error);
+          toast.error(error.message || "Invalid email or password");
           return false;
         }
-        
-        const newUser: User = {
-          id: `user_${Date.now()}`,
-          username: userData.username || '',
-          email: userData.email || '',
-          password: userData.password || '',
-          role: userData.role || 'visitor',
-          createdAt: new Date().toISOString(),
-          likedArtworks: [],
-          ...userData
-        };
-        
-        // Save to localStorage
-        localStorage.setItem('users', JSON.stringify([...storedUsers, newUser]));
-        
-        // Auto login
-        set({ currentUser: newUser, isAuthenticated: true });
-        toast.success("Registration successful!");
-        return true;
       },
-      logout: () => {
-        set({ currentUser: null, isAuthenticated: false });
-        toast.success("Logged out successfully");
+      register: async (userData: Partial<User>) => {
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email: userData.email || '',
+            password: userData.password || '',
+          });
+          
+          if (error) throw error;
+          
+          if (data.user) {
+            // Update the profile
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .update({
+                username: userData.username,
+                role: userData.role || 'visitor'
+              })
+              .eq('id', data.user.id);
+            
+            if (profileError) throw profileError;
+            
+            const currentUser: User = {
+              id: data.user.id,
+              email: data.user.email || '',
+              username: userData.username || data.user.email?.split('@')[0] || '',
+              password: '', // We don't store passwords
+              role: userData.role || 'visitor',
+              createdAt: data.user.created_at || new Date().toISOString(),
+              likedArtworks: []
+            };
+            
+            set({ currentUser, isAuthenticated: true });
+            toast.success("Registration successful!");
+            
+            return true;
+          }
+          
+          return false;
+        } catch (error: any) {
+          console.error('Registration error:', error);
+          toast.error(error.message || "Registration failed");
+          return false;
+        }
       },
-      updateUserProfile: (profileData: Partial<User>) => {
+      logout: async () => {
+        try {
+          const { error } = await supabase.auth.signOut();
+          if (error) throw error;
+          
+          set({ currentUser: null, isAuthenticated: false });
+          toast.success("Logged out successfully");
+        } catch (error: any) {
+          console.error('Logout error:', error);
+          toast.error(error.message || "Error during logout");
+        }
+      },
+      updateUserProfile: async (profileData: Partial<User>) => {
         const { currentUser } = get();
         
         if (!currentUser) {
@@ -75,26 +124,34 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
         
-        // Get users from localStorage
-        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-        const userIndex = storedUsers.findIndex((u: User) => u.id === currentUser.id);
-        
-        if (userIndex === -1) {
-          toast.error("User not found");
-          return;
+        try {
+          // Update profile in Supabase
+          const { error } = await supabase
+            .from('profiles')
+            .update({
+              username: profileData.username,
+              avatar: profileData.avatar,
+              bio: profileData.bio,
+              role: profileData.role,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id);
+          
+          if (error) throw error;
+          
+          // Update the current user in state
+          set({
+            currentUser: {
+              ...currentUser,
+              ...profileData
+            }
+          });
+          
+          toast.success("Profile updated successfully");
+        } catch (error: any) {
+          console.error('Profile update error:', error);
+          toast.error(error.message || "Error updating profile");
         }
-        
-        // Update user data
-        const updatedUser = {
-          ...currentUser,
-          ...profileData,
-        };
-        
-        storedUsers[userIndex] = updatedUser;
-        localStorage.setItem('users', JSON.stringify(storedUsers));
-        
-        set({ currentUser: updatedUser });
-        toast.success("Profile updated successfully");
       }
     }),
     {
@@ -113,19 +170,20 @@ interface GalleryState {
     category: string;
     year: number | null;
   };
-  getArtworks: () => void;
-  getArtworkById: (id: string) => Artwork | undefined;
-  getArtworksByArtist: (artistId: string) => Artwork[];
-  addArtwork: (artwork: Partial<Artwork>) => void;
-  updateArtwork: (id: string, artworkData: Partial<Artwork>) => void;
-  deleteArtwork: (id: string) => void;
-  getCommentsByArtworkId: (artworkId: string) => Comment[];
-  addComment: (comment: Partial<Comment>) => void;
-  toggleLike: (artworkId: string) => void;
+  getArtworks: () => Promise<void>;
+  getArtworkById: (id: string) => Promise<Artwork | undefined>;
+  getArtworksByArtist: (artistId: string) => Promise<Artwork[]>;
+  addArtwork: (artwork: Partial<Artwork>) => Promise<void>;
+  updateArtwork: (id: string, artworkData: Partial<Artwork>) => Promise<void>;
+  deleteArtwork: (id: string) => Promise<void>;
+  getCommentsByArtworkId: (artworkId: string) => Promise<Comment[]>;
+  addComment: (comment: Partial<Comment>) => Promise<void>;
+  toggleLike: (artworkId: string) => Promise<void>;
+  getUserLikedArtworks: (userId: string) => Promise<string[]>;
   setSearchQuery: (query: string) => void;
   setFilter: (filter: string, value: string | number | null) => void;
   clearFilters: () => void;
-  setSelectedArtwork: (artwork: Artwork | null) => void;
+  setSelectedArtwork: (artwork: Artwork | null) => Promise<void>;
 }
 
 export const useGalleryStore = create<GalleryState>()(
@@ -140,29 +198,118 @@ export const useGalleryStore = create<GalleryState>()(
         category: '',
         year: null
       },
-      getArtworks: () => {
-        const storedArtworks = JSON.parse(localStorage.getItem('artworks') || '[]');
-        const storedComments = JSON.parse(localStorage.getItem('comments') || '[]');
-        
-        set({ 
-          artworks: storedArtworks,
-          filteredArtworks: storedArtworks,
-          comments: storedComments
-        });
-        
-        // Apply any active filters or search
-        const { searchQuery, activeFilters } = get();
-        if (searchQuery || activeFilters.category || activeFilters.year) {
-          get().setSearchQuery(searchQuery);
+      getArtworks: async () => {
+        try {
+          const { data, error } = await supabase
+            .from('artworks')
+            .select('*')
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          
+          const artworks: Artwork[] = (data || []).map(item => ({
+            id: item.id,
+            title: item.title,
+            description: item.description || '',
+            imageUrl: item.image_url,
+            artistId: item.artist_id,
+            category: item.category || 'Other',
+            medium: item.medium || '',
+            dimensions: item.dimensions || '',
+            year: item.year || new Date().getFullYear(),
+            likes: item.likes || 0,
+            views: item.views || 0,
+            tags: item.tags || [],
+            createdAt: item.created_at,
+            isForSale: item.is_for_sale || false,
+            price: item.price?.toString() || '',
+          }));
+          
+          set({ 
+            artworks: artworks,
+            filteredArtworks: artworks
+          });
+          
+          // Apply any active filters or search
+          const { searchQuery, activeFilters } = get();
+          if (searchQuery || activeFilters.category || activeFilters.year) {
+            get().setSearchQuery(searchQuery);
+          }
+        } catch (error: any) {
+          console.error('Error fetching artworks:', error);
+          toast.error('Failed to load artworks');
         }
       },
-      getArtworkById: (id: string) => {
-        return get().artworks.find(artwork => artwork.id === id);
+      getArtworkById: async (id: string) => {
+        try {
+          const { data, error } = await supabase
+            .from('artworks')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (error) throw error;
+          
+          if (data) {
+            const artwork: Artwork = {
+              id: data.id,
+              title: data.title,
+              description: data.description || '',
+              imageUrl: data.image_url,
+              artistId: data.artist_id,
+              category: data.category || 'Other',
+              medium: data.medium || '',
+              dimensions: data.dimensions || '',
+              year: data.year || new Date().getFullYear(),
+              likes: data.likes || 0,
+              views: data.views || 0,
+              tags: data.tags || [],
+              createdAt: data.created_at,
+              isForSale: data.is_for_sale || false,
+              price: data.price?.toString() || '',
+            };
+            return artwork;
+          }
+        } catch (error) {
+          console.error('Error fetching artwork:', error);
+          toast.error('Failed to load artwork details');
+        }
+        return undefined;
       },
-      getArtworksByArtist: (artistId: string) => {
-        return get().artworks.filter(artwork => artwork.artistId === artistId);
+      getArtworksByArtist: async (artistId: string) => {
+        try {
+          const { data, error } = await supabase
+            .from('artworks')
+            .select('*')
+            .eq('artist_id', artistId)
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          
+          return (data || []).map(item => ({
+            id: item.id,
+            title: item.title,
+            description: item.description || '',
+            imageUrl: item.image_url,
+            artistId: item.artist_id,
+            category: item.category || 'Other',
+            medium: item.medium || '',
+            dimensions: item.dimensions || '',
+            year: item.year || new Date().getFullYear(),
+            likes: item.likes || 0,
+            views: item.views || 0,
+            tags: item.tags || [],
+            createdAt: item.created_at,
+            isForSale: item.is_for_sale || false,
+            price: item.price?.toString() || '',
+          }));
+        } catch (error) {
+          console.error('Error fetching artist artworks:', error);
+          toast.error('Failed to load artist artworks');
+          return [];
+        }
       },
-      addArtwork: (artworkData: Partial<Artwork>) => {
+      addArtwork: async (artworkData: Partial<Artwork>) => {
         const { currentUser } = useAuthStore.getState();
         
         if (!currentUser) {
@@ -170,98 +317,198 @@ export const useGalleryStore = create<GalleryState>()(
           return;
         }
         
-        const newArtwork: Artwork = {
-          id: `artwork_${Date.now()}`,
-          title: artworkData.title || "Untitled",
-          description: artworkData.description || "",
-          imageUrl: artworkData.imageUrl || "",
-          artistId: currentUser.id,
-          category: artworkData.category || "Other",
-          medium: artworkData.medium || "",
-          dimensions: artworkData.dimensions,
-          year: artworkData.year || new Date().getFullYear(),
-          likes: 0,
-          views: 0,
-          tags: artworkData.tags || [],
-          createdAt: new Date().toISOString(),
-          isForSale: artworkData.isForSale || false,
-          price: artworkData.price || "",
-        };
-        
-        const updatedArtworks = [...get().artworks, newArtwork];
-        localStorage.setItem('artworks', JSON.stringify(updatedArtworks));
-        
-        set({ 
-          artworks: updatedArtworks,
-          filteredArtworks: updatedArtworks
-        });
-        
-        toast.success("Artwork added successfully");
+        try {
+          const { data, error } = await supabase
+            .from('artworks')
+            .insert({
+              title: artworkData.title || 'Untitled',
+              description: artworkData.description || '',
+              image_url: artworkData.imageUrl || '',
+              artist_id: currentUser.id,
+              category: artworkData.category || 'Other',
+              medium: artworkData.medium || '',
+              dimensions: artworkData.dimensions || '',
+              year: artworkData.year || new Date().getFullYear(),
+              tags: artworkData.tags || [],
+              is_for_sale: artworkData.isForSale || false,
+              price: artworkData.price ? parseFloat(artworkData.price) : null,
+            })
+            .select()
+            .single();
+          
+          if (error) throw error;
+          
+          if (data) {
+            const newArtwork: Artwork = {
+              id: data.id,
+              title: data.title,
+              description: data.description || '',
+              imageUrl: data.image_url,
+              artistId: data.artist_id,
+              category: data.category || 'Other',
+              medium: data.medium || '',
+              dimensions: data.dimensions || '',
+              year: data.year || new Date().getFullYear(),
+              likes: data.likes || 0,
+              views: data.views || 0,
+              tags: data.tags || [],
+              createdAt: data.created_at,
+              isForSale: data.is_for_sale || false,
+              price: data.price?.toString() || '',
+            };
+            
+            const updatedArtworks = [newArtwork, ...get().artworks];
+            
+            set({
+              artworks: updatedArtworks,
+              filteredArtworks: get().searchQuery ? get().filteredArtworks : updatedArtworks
+            });
+            
+            toast.success("Artwork added successfully");
+          }
+        } catch (error: any) {
+          console.error('Error adding artwork:', error);
+          toast.error(error.message || 'Failed to add artwork');
+        }
       },
-      updateArtwork: (id: string, artworkData: Partial<Artwork>) => {
+      updateArtwork: async (id: string, artworkData: Partial<Artwork>) => {
         const { currentUser } = useAuthStore.getState();
-        const artwork = get().getArtworkById(id);
         
-        if (!artwork) {
-          toast.error("Artwork not found");
+        if (!currentUser) {
+          toast.error("You must be logged in to update artwork");
           return;
         }
         
-        if (!currentUser || (currentUser.id !== artwork.artistId && currentUser.role !== 'admin')) {
-          toast.error("You don't have permission to edit this artwork");
-          return;
+        try {
+          // Get existing artwork to check permissions
+          const { data: existingArtwork, error: fetchError } = await supabase
+            .from('artworks')
+            .select('artist_id')
+            .eq('id', id)
+            .single();
+          
+          if (fetchError) throw fetchError;
+          
+          if (existingArtwork.artist_id !== currentUser.id && currentUser.role !== 'admin') {
+            toast.error("You don't have permission to edit this artwork");
+            return;
+          }
+          
+          const { error } = await supabase
+            .from('artworks')
+            .update({
+              title: artworkData.title,
+              description: artworkData.description,
+              image_url: artworkData.imageUrl,
+              category: artworkData.category,
+              medium: artworkData.medium,
+              dimensions: artworkData.dimensions,
+              year: artworkData.year,
+              tags: artworkData.tags,
+              is_for_sale: artworkData.isForSale,
+              price: artworkData.price ? parseFloat(artworkData.price) : null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
+          
+          if (error) throw error;
+          
+          // Refresh the artwork data
+          const updatedArtwork = await get().getArtworkById(id);
+          
+          if (updatedArtwork) {
+            set({
+              artworks: get().artworks.map(art => 
+                art.id === id ? updatedArtwork : art
+              ),
+              filteredArtworks: get().filteredArtworks.map(art => 
+                art.id === id ? updatedArtwork : art
+              ),
+              selectedArtwork: get().selectedArtwork?.id === id 
+                ? updatedArtwork 
+                : get().selectedArtwork
+            });
+          }
+          
+          toast.success("Artwork updated successfully");
+        } catch (error: any) {
+          console.error('Error updating artwork:', error);
+          toast.error(error.message || 'Failed to update artwork');
         }
-        
-        const updatedArtworks = get().artworks.map(art => 
-          art.id === id ? { ...art, ...artworkData } : art
-        );
-        
-        localStorage.setItem('artworks', JSON.stringify(updatedArtworks));
-        
-        set({ 
-          artworks: updatedArtworks,
-          filteredArtworks: updatedArtworks,
-          selectedArtwork: get().selectedArtwork?.id === id 
-            ? { ...get().selectedArtwork, ...artworkData } 
-            : get().selectedArtwork
-        });
-        
-        toast.success("Artwork updated successfully");
       },
-      deleteArtwork: (id: string) => {
+      deleteArtwork: async (id: string) => {
         const { currentUser } = useAuthStore.getState();
-        const artwork = get().getArtworkById(id);
         
-        if (!artwork) {
-          toast.error("Artwork not found");
+        if (!currentUser) {
+          toast.error("You must be logged in to delete artwork");
           return;
         }
         
-        if (!currentUser || (currentUser.id !== artwork.artistId && currentUser.role !== 'admin')) {
-          toast.error("You don't have permission to delete this artwork");
-          return;
+        try {
+          // Get existing artwork to check permissions
+          const { data: existingArtwork, error: fetchError } = await supabase
+            .from('artworks')
+            .select('artist_id')
+            .eq('id', id)
+            .single();
+          
+          if (fetchError) throw fetchError;
+          
+          if (existingArtwork.artist_id !== currentUser.id && currentUser.role !== 'admin') {
+            toast.error("You don't have permission to delete this artwork");
+            return;
+          }
+          
+          const { error } = await supabase
+            .from('artworks')
+            .delete()
+            .eq('id', id);
+          
+          if (error) throw error;
+          
+          set({ 
+            artworks: get().artworks.filter(art => art.id !== id),
+            filteredArtworks: get().filteredArtworks.filter(art => art.id !== id),
+            selectedArtwork: get().selectedArtwork?.id === id ? null : get().selectedArtwork
+          });
+          
+          toast.success("Artwork deleted successfully");
+        } catch (error: any) {
+          console.error('Error deleting artwork:', error);
+          toast.error(error.message || 'Failed to delete artwork');
         }
-        
-        const updatedArtworks = get().artworks.filter(art => art.id !== id);
-        localStorage.setItem('artworks', JSON.stringify(updatedArtworks));
-        
-        // Also delete related comments
-        const updatedComments = get().comments.filter(comment => comment.artworkId !== id);
-        localStorage.setItem('comments', JSON.stringify(updatedComments));
-        
-        set({ 
-          artworks: updatedArtworks,
-          filteredArtworks: updatedArtworks,
-          comments: updatedComments,
-          selectedArtwork: get().selectedArtwork?.id === id ? null : get().selectedArtwork
-        });
-        
-        toast.success("Artwork deleted successfully");
       },
-      getCommentsByArtworkId: (artworkId: string) => {
-        return get().comments.filter(comment => comment.artworkId === artworkId);
+      getCommentsByArtworkId: async (artworkId: string) => {
+        try {
+          const { data, error } = await supabase
+            .from('comments')
+            .select(`
+              *,
+              profiles:user_id (username, avatar)
+            `)
+            .eq('artwork_id', artworkId)
+            .order('created_at', { ascending: true });
+          
+          if (error) throw error;
+          
+          return (data || []).map(item => ({
+            id: item.id,
+            artworkId: item.artwork_id,
+            userId: item.user_id,
+            text: item.text,
+            createdAt: item.created_at,
+            user: {
+              username: item.profiles?.username || 'Unknown User',
+              avatar: item.profiles?.avatar || null
+            }
+          }));
+        } catch (error) {
+          console.error('Error fetching comments:', error);
+          toast.error('Failed to load comments');
+          return [];
+        }
       },
-      addComment: (commentData: Partial<Comment>) => {
+      addComment: async (comment: Partial<Comment>) => {
         const { currentUser } = useAuthStore.getState();
         
         if (!currentUser) {
@@ -269,22 +516,59 @@ export const useGalleryStore = create<GalleryState>()(
           return;
         }
         
-        const newComment: Comment = {
-          id: `comment_${Date.now()}`,
-          artworkId: commentData.artworkId || "",
-          userId: currentUser.id,
-          text: commentData.text || "",
-          createdAt: new Date().toISOString()
-        };
-        
-        const updatedComments = [...get().comments, newComment];
-        localStorage.setItem('comments', JSON.stringify(updatedComments));
-        
-        set({ comments: updatedComments });
-        
-        toast.success("Comment added successfully");
+        try {
+          const { data, error } = await supabase
+            .from('comments')
+            .insert({
+              artwork_id: comment.artworkId,
+              user_id: currentUser.id,
+              text: comment.text
+            })
+            .select(`
+              *,
+              profiles:user_id (username, avatar)
+            `)
+            .single();
+          
+          if (error) throw error;
+          
+          if (data) {
+            const newComment: Comment = {
+              id: data.id,
+              artworkId: data.artwork_id,
+              userId: data.user_id,
+              text: data.text,
+              createdAt: data.created_at,
+              user: {
+                username: data.profiles?.username || currentUser.username,
+                avatar: data.profiles?.avatar || currentUser.avatar
+              }
+            };
+            
+            set({ comments: [...get().comments, newComment] });
+            toast.success("Comment added successfully");
+          }
+        } catch (error: any) {
+          console.error('Error adding comment:', error);
+          toast.error(error.message || 'Failed to add comment');
+        }
       },
-      toggleLike: (artworkId: string) => {
+      getUserLikedArtworks: async (userId: string) => {
+        try {
+          const { data, error } = await supabase
+            .from('likes')
+            .select('artwork_id')
+            .eq('user_id', userId);
+          
+          if (error) throw error;
+          
+          return (data || []).map(item => item.artwork_id);
+        } catch (error) {
+          console.error('Error fetching likes:', error);
+          return [];
+        }
+      },
+      toggleLike: async (artworkId: string) => {
         const { currentUser } = useAuthStore.getState();
         
         if (!currentUser) {
@@ -292,66 +576,70 @@ export const useGalleryStore = create<GalleryState>()(
           return;
         }
         
-        const artwork = get().getArtworkById(artworkId);
-        if (!artwork) {
-          toast.error("Artwork not found");
-          return;
-        }
-        
-        // Get users from localStorage
-        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-        const userIndex = storedUsers.findIndex((u: User) => u.id === currentUser.id);
-        
-        if (userIndex === -1) {
-          toast.error("User not found");
-          return;
-        }
-        
-        let updatedLikes = artwork.likes;
-        let updatedLikedArtworks = [...storedUsers[userIndex].likedArtworks];
-        
-        const hasLiked = updatedLikedArtworks.includes(artworkId);
-        
-        if (hasLiked) {
-          // Unlike
-          updatedLikes--;
-          updatedLikedArtworks = updatedLikedArtworks.filter(id => id !== artworkId);
-        } else {
-          // Like
-          updatedLikes++;
-          updatedLikedArtworks.push(artworkId);
-        }
-        
-        // Update the user's liked artworks
-        storedUsers[userIndex].likedArtworks = updatedLikedArtworks;
-        localStorage.setItem('users', JSON.stringify(storedUsers));
-        
-        // Update the auth store
-        useAuthStore.setState({
-          currentUser: {
-            ...currentUser,
-            likedArtworks: updatedLikedArtworks
+        try {
+          // Check if the user has already liked this artwork
+          const { data: existingLike, error: checkError } = await supabase
+            .from('likes')
+            .select('id')
+            .eq('user_id', currentUser.id)
+            .eq('artwork_id', artworkId)
+            .maybeSingle();
+          
+          if (checkError) throw checkError;
+          
+          if (existingLike) {
+            // Remove the like
+            const { error: unlikeError } = await supabase
+              .from('likes')
+              .delete()
+              .eq('id', existingLike.id);
+            
+            if (unlikeError) throw unlikeError;
+            
+            toast.success("Artwork unliked");
+          } else {
+            // Add the like
+            const { error: likeError } = await supabase
+              .from('likes')
+              .insert({
+                user_id: currentUser.id,
+                artwork_id: artworkId
+              });
+            
+            if (likeError) throw likeError;
+            
+            toast.success("Artwork liked");
           }
-        });
-        
-        // Update the artwork
-        const updatedArtworks = get().artworks.map(art => 
-          art.id === artworkId ? { ...art, likes: updatedLikes } : art
-        );
-        
-        localStorage.setItem('artworks', JSON.stringify(updatedArtworks));
-        
-        set({ 
-          artworks: updatedArtworks,
-          filteredArtworks: get().filteredArtworks.map(art => 
-            art.id === artworkId ? { ...art, likes: updatedLikes } : art
-          ),
-          selectedArtwork: get().selectedArtwork?.id === artworkId 
-            ? { ...get().selectedArtwork, likes: updatedLikes } 
-            : get().selectedArtwork
-        });
-        
-        toast.success(hasLiked ? "Artwork unliked" : "Artwork liked");
+          
+          // Update the artwork in our local state with the new like count
+          const updatedArtwork = await get().getArtworkById(artworkId);
+          
+          if (updatedArtwork) {
+            set({
+              artworks: get().artworks.map(art => 
+                art.id === artworkId ? updatedArtwork : art
+              ),
+              filteredArtworks: get().filteredArtworks.map(art => 
+                art.id === artworkId ? updatedArtwork : art
+              ),
+              selectedArtwork: get().selectedArtwork?.id === artworkId 
+                ? updatedArtwork 
+                : get().selectedArtwork
+            });
+          }
+          
+          // Update user's likedArtworks list
+          const likedArtworks = await get().getUserLikedArtworks(currentUser.id);
+          useAuthStore.setState({
+            currentUser: {
+              ...currentUser,
+              likedArtworks
+            }
+          });
+        } catch (error: any) {
+          console.error('Error toggling like:', error);
+          toast.error(error.message || 'Failed to like/unlike artwork');
+        }
       },
       setSearchQuery: (query: string) => {
         const filteredResults = get().artworks.filter(artwork => {
@@ -395,24 +683,36 @@ export const useGalleryStore = create<GalleryState>()(
         // Reset to just search query filtering
         get().setSearchQuery(get().searchQuery);
       },
-      setSelectedArtwork: (artwork: Artwork | null) => {
+      setSelectedArtwork: async (artwork: Artwork | null) => {
         set({ selectedArtwork: artwork });
         
         if (artwork) {
-          // Increment view count
-          const updatedArtworks = get().artworks.map(art => 
-            art.id === artwork.id ? { ...art, views: art.views + 1 } : art
-          );
-          
-          localStorage.setItem('artworks', JSON.stringify(updatedArtworks));
-          
-          set({ 
-            artworks: updatedArtworks,
-            filteredArtworks: get().filteredArtworks.map(art => 
-              art.id === artwork.id ? { ...art, views: art.views + 1 } : art
-            ),
-            selectedArtwork: { ...artwork, views: artwork.views + 1 }
-          });
+          try {
+            // Increment view count
+            const { error } = await supabase
+              .from('artworks')
+              .update({ views: artwork.views + 1 })
+              .eq('id', artwork.id);
+            
+            if (error) throw error;
+            
+            // Get the updated artwork
+            const updatedArtwork = await get().getArtworkById(artwork.id);
+            
+            if (updatedArtwork) {
+              set({
+                artworks: get().artworks.map(art => 
+                  art.id === artwork.id ? updatedArtwork : art
+                ),
+                filteredArtworks: get().filteredArtworks.map(art => 
+                  art.id === artwork.id ? updatedArtwork : art
+                ),
+                selectedArtwork: updatedArtwork
+              });
+            }
+          } catch (error) {
+            console.error('Error updating view count:', error);
+          }
         }
       }
     }),
@@ -422,21 +722,45 @@ export const useGalleryStore = create<GalleryState>()(
   )
 );
 
-// Initialize data in local storage
-export const initializeStores = () => {
-  // First, check if we need to initialize localStorage
-  if (!localStorage.getItem('artworks')) {
-    localStorage.setItem('artworks', JSON.stringify(artworks));
+// Initialize data in Supabase 
+export const initializeAuth = async () => {
+  // Check for existing session
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (session?.user) {
+    // Get the user profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+    
+    // Get user's liked artworks
+    const { data: likes } = await supabase
+      .from('likes')
+      .select('artwork_id')
+      .eq('user_id', session.user.id);
+    
+    const likedArtworks = (likes || []).map(like => like.artwork_id);
+    
+    const currentUser: User = {
+      id: session.user.id,
+      email: session.user.email || '',
+      username: profile?.username || session.user.email?.split('@')[0] || '',
+      password: '', // We don't store passwords
+      role: profile?.role || 'visitor',
+      avatar: profile?.avatar || '',
+      bio: profile?.bio || '',
+      createdAt: session.user.created_at || new Date().toISOString(),
+      likedArtworks: likedArtworks
+    };
+    
+    useAuthStore.setState({
+      currentUser,
+      isAuthenticated: true
+    });
   }
   
-  if (!localStorage.getItem('users')) {
-    localStorage.setItem('users', JSON.stringify(users));
-  }
-  
-  if (!localStorage.getItem('comments')) {
-    localStorage.setItem('comments', JSON.stringify(comments));
-  }
-  
-  // Then initialize the gallery store with data from localStorage
+  // Initialize gallery data
   useGalleryStore.getState().getArtworks();
 };

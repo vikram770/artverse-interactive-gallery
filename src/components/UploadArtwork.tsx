@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import ArtworkForm from "./artwork/ArtworkForm";
 import ArtworkImageUploader from "./artwork/ArtworkImageUploader";
 import { Artwork } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UploadArtworkProps {
   artworkToEdit?: Artwork;
@@ -50,7 +51,7 @@ const UploadArtwork = ({ artworkToEdit }: UploadArtworkProps) => {
     );
   }
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate form
@@ -67,14 +68,19 @@ const UploadArtwork = ({ artworkToEdit }: UploadArtworkProps) => {
       price: formData.isForSale ? formData.price : "",
     };
     
-    if (isEditMode && artworkToEdit) {
-      updateArtwork(artworkToEdit.id, artwork);
-      toast.success("Artwork updated successfully");
-      navigate(`/artwork/${artworkToEdit.id}`);
-    } else {
-      addArtwork(artwork);
-      toast.success("Artwork uploaded successfully");
-      navigate("/profile");
+    try {
+      if (isEditMode && artworkToEdit) {
+        await updateArtwork(artworkToEdit.id, artwork);
+        toast.success("Artwork updated successfully");
+        navigate(`/artwork/${artworkToEdit.id}`);
+      } else {
+        await addArtwork(artwork);
+        toast.success("Artwork uploaded successfully");
+        navigate("/profile");
+      }
+    } catch (error) {
+      console.error("Error submitting artwork:", error);
+      toast.error("Something went wrong. Please try again.");
     }
   };
   

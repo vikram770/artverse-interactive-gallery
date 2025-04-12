@@ -9,11 +9,12 @@ import { Artwork } from "@/types";
 import { Heart, Image, MessageSquare, PlusCircle, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useGalleryStore } from "@/lib/store";
+import { useGalleryStore, useAuthStore } from "@/lib/store";
 
 const UserProfile = () => {
   const navigate = useNavigate();
-  const { getArtworksByArtist, artworks } = useGalleryStore();
+  const { getArtworksByArtist, getUserLikedArtworks } = useGalleryStore();
+  const { logout } = useAuthStore();
   
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -25,6 +26,7 @@ const UserProfile = () => {
     // Check current authentication status
     const checkUser = async () => {
       try {
+        setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session?.user) {
@@ -49,14 +51,42 @@ const UserProfile = () => {
           
           const userRole = profileData.role;
           if (userRole === "artist" || userRole === "admin") {
-            const artistWorks = getArtworksByArtist(session.user.id);
+            // Load user's artworks
+            const artistWorks = await getArtworksByArtist(session.user.id);
             setUserArtworks(artistWorks);
           }
           
-          // Get liked artworks - will need to be updated when we integrate likes with Supabase
-          const userLikes: string[] = [];
-          const liked = artworks.filter(artwork => userLikes.includes(artwork.id));
-          setLikedArtworks(liked);
+          // Get liked artworks
+          const likedIds = await getUserLikedArtworks(session.user.id);
+          
+          if (likedIds.length > 0) {
+            // Fetch artwork details for each liked artwork
+            const { data: likedArtworksData } = await supabase
+              .from('artworks')
+              .select('*')
+              .in('id', likedIds);
+              
+            if (likedArtworksData) {
+              const liked = likedArtworksData.map(item => ({
+                id: item.id,
+                title: item.title,
+                description: item.description || '',
+                imageUrl: item.image_url,
+                artistId: item.artist_id,
+                category: item.category || 'Other',
+                medium: item.medium || '',
+                dimensions: item.dimensions || '',
+                year: item.year || new Date().getFullYear(),
+                likes: item.likes || 0,
+                views: item.views || 0,
+                tags: item.tags || [],
+                createdAt: item.created_at,
+                isForSale: item.is_for_sale || false,
+                price: item.price?.toString() || '',
+              }));
+              setLikedArtworks(liked);
+            }
+          }
         }
       } catch (error) {
         console.error("Auth check error:", error);
@@ -82,17 +112,14 @@ const UserProfile = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate, getArtworksByArtist, artworks]);
+  }, [navigate, getArtworksByArtist, getUserLikedArtworks]);
   
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      toast.success("Logged out successfully");
+      await logout();
       navigate("/login");
     } catch (error) {
       console.error("Logout error:", error);
-      toast.error("Error during logout");
     }
   };
   
@@ -128,7 +155,7 @@ const UserProfile = () => {
             <div className="flex flex-wrap justify-center md:justify-start gap-4 mb-4">
               <div className="flex items-center">
                 <Heart className="mr-2 h-4 w-4 text-gray-500" />
-                <span>0 Likes</span>
+                <span>{likedArtworks.length} Likes</span>
               </div>
               
               {profile.role === "artist" && (

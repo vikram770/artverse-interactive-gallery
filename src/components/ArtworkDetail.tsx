@@ -8,6 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Heart, Share2, Eye, MessageSquare, Edit, Trash2, Maximize2, Minimize2 } from "lucide-react";
 import CommentList from "./CommentList";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const ArtworkDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,51 +21,109 @@ const ArtworkDetail = () => {
     addComment, 
     toggleLike,
     deleteArtwork,
+    getUserLikedArtworks
   } = useGalleryStore();
   
-  const [artwork, setArtwork] = useState(id ? getArtworkById(id) : undefined);
-  const [comments, setComments] = useState(id ? getCommentsByArtworkId(id) : []);
+  const [artwork, setArtwork] = useState<any>(undefined);
+  const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isZoomed, setIsZoomed] = useState(false);
-  
-  const isLiked = currentUser?.likedArtworks.includes(id || "") || false;
-  const isOwner = currentUser?.id === artwork?.artistId;
-  const isAdmin = currentUser?.role === "admin";
-  const canEdit = isOwner || isAdmin;
+  const [artistName, setArtistName] = useState("Unknown Artist");
+  const [isLiked, setIsLiked] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    if (id) {
-      const foundArtwork = getArtworkById(id);
-      setArtwork(foundArtwork);
+    const loadArtworkDetails = async () => {
+      if (!id) return;
       
-      if (foundArtwork) {
-        setComments(getCommentsByArtworkId(id));
-      } else {
-        // Artwork not found, redirect to 404
-        navigate("/not-found", { replace: true });
+      try {
+        setLoading(true);
+        
+        const foundArtwork = await getArtworkById(id);
+        if (!foundArtwork) {
+          navigate("/not-found", { replace: true });
+          return;
+        }
+        
+        setArtwork(foundArtwork);
+        
+        // Get artist details
+        const { data: artistData } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', foundArtwork.artistId)
+          .single();
+        
+        if (artistData) {
+          setArtistName(artistData.username || "Unknown Artist");
+        }
+        
+        // Get comments
+        const artworkComments = await getCommentsByArtworkId(id);
+        setComments(artworkComments);
+        
+        // Check if user has liked this artwork
+        if (currentUser) {
+          const likedArtworks = await getUserLikedArtworks(currentUser.id);
+          setIsLiked(likedArtworks.includes(id));
+        }
+      } catch (error) {
+        console.error("Error loading artwork details:", error);
+        toast.error("Failed to load artwork details");
+      } finally {
+        setLoading(false);
       }
-    }
-  }, [id, getArtworkById, getCommentsByArtworkId, navigate]);
+    };
+    
+    loadArtworkDetails();
+  }, [id, getArtworkById, getCommentsByArtworkId, navigate, currentUser, getUserLikedArtworks]);
   
-  const handleSubmitComment = (e: React.FormEvent) => {
+  const isOwner = currentUser?.id === artwork?.artistId;
+  const isAdmin = currentUser?.role === 'admin';
+  const canEdit = isOwner || isAdmin;
+  
+  const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!id || !newComment.trim()) return;
     
-    addComment({
-      artworkId: id,
-      text: newComment
-    });
-    
-    setNewComment("");
-    setComments(getCommentsByArtworkId(id));
+    try {
+      await addComment({
+        artworkId: id,
+        text: newComment
+      });
+      
+      setNewComment("");
+      
+      // Refresh comments
+      const updatedComments = await getCommentsByArtworkId(id);
+      setComments(updatedComments);
+    } catch (error) {
+      console.error("Error submitting comment:", error);
+      toast.error("Failed to submit comment");
+    }
   };
   
-  const handleLike = () => {
-    if (id) {
-      toggleLike(id);
-      // Update local state to reflect the like change
-      setArtwork(getArtworkById(id));
+  const handleLike = async () => {
+    if (!id) return;
+    
+    try {
+      await toggleLike(id);
+      
+      // Update artwork to get the new like count
+      const updatedArtwork = await getArtworkById(id);
+      if (updatedArtwork) {
+        setArtwork(updatedArtwork);
+      }
+      
+      // Check if user has liked this artwork
+      if (currentUser) {
+        const likedArtworks = await getUserLikedArtworks(currentUser.id);
+        setIsLiked(likedArtworks.includes(id));
+      }
+    } catch (error) {
+      console.error("Error liking artwork:", error);
+      toast.error("Failed to like artwork");
     }
   };
   
@@ -77,14 +137,21 @@ const ArtworkDetail = () => {
     } else {
       // Fallback for browsers that don't support the Web Share API
       navigator.clipboard.writeText(window.location.href);
-      alert("Link copied to clipboard!");
+      toast.success("Link copied to clipboard!");
     }
   };
   
-  const handleDelete = () => {
-    if (id && window.confirm("Are you sure you want to delete this artwork? This action cannot be undone.")) {
-      deleteArtwork(id);
-      navigate("/", { replace: true });
+  const handleDelete = async () => {
+    if (!id) return;
+    
+    if (window.confirm("Are you sure you want to delete this artwork? This action cannot be undone.")) {
+      try {
+        await deleteArtwork(id);
+        navigate("/", { replace: true });
+      } catch (error) {
+        console.error("Error deleting artwork:", error);
+        toast.error("Failed to delete artwork");
+      }
     }
   };
   
@@ -92,10 +159,18 @@ const ArtworkDetail = () => {
     setIsZoomed(!isZoomed);
   };
   
-  if (!artwork) {
+  if (loading) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <p>Loading artwork...</p>
+      </div>
+    );
+  }
+  
+  if (!artwork) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <p>Artwork not found</p>
       </div>
     );
   }
@@ -135,7 +210,7 @@ const ArtworkDetail = () => {
             <p className="text-gray-700 mb-6">{artwork.description}</p>
             
             <div className="flex flex-wrap gap-2 mb-6">
-              {artwork.tags.map((tag) => (
+              {artwork.tags.map((tag: string) => (
                 <Badge key={tag} variant="secondary">#{tag}</Badge>
               ))}
             </div>

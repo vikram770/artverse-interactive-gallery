@@ -35,6 +35,10 @@ export interface Comment {
   userId: string;
   text: string;
   createdAt: string;
+  user?: {
+    username: string;
+    avatar: string | null;
+  }
 }
 
 export interface Artist extends User {

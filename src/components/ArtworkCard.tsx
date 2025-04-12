@@ -1,10 +1,12 @@
 
+import { useState, useEffect } from "react";
 import { Artwork } from "@/types";
 import { Link } from "react-router-dom";
 import { Heart, Calendar, User } from "lucide-react";
 import { useAuthStore, useGalleryStore } from "@/lib/store";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ArtworkCardProps {
   artwork: Artwork;
@@ -12,21 +14,53 @@ interface ArtworkCardProps {
 
 const ArtworkCard = ({ artwork }: ArtworkCardProps) => {
   const { currentUser } = useAuthStore();
-  const { toggleLike } = useGalleryStore();
+  const { toggleLike, getUserLikedArtworks } = useGalleryStore();
   
-  const isLiked = currentUser?.likedArtworks.includes(artwork.id) || false;
+  const [isLiked, setIsLiked] = useState(false);
+  const [artistName, setArtistName] = useState("Unknown Artist");
   
-  const handleLikeClick = (e: React.MouseEvent) => {
+  useEffect(() => {
+    // Check if user has liked this artwork
+    const checkLikedStatus = async () => {
+      if (currentUser) {
+        const likedArtworks = await getUserLikedArtworks(currentUser.id);
+        setIsLiked(likedArtworks.includes(artwork.id));
+      }
+    };
+    
+    // Get artist name
+    const getArtistDetails = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', artwork.artistId)
+          .single();
+        
+        if (error) throw error;
+        
+        if (data) {
+          setArtistName(data.username || "Unknown Artist");
+        }
+      } catch (error) {
+        console.error("Error fetching artist details:", error);
+      }
+    };
+    
+    checkLikedStatus();
+    getArtistDetails();
+  }, [artwork.id, artwork.artistId, currentUser, getUserLikedArtworks]);
+  
+  const handleLikeClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleLike(artwork.id);
-  };
-  
-  // Find the artist username
-  const getArtistName = () => {
-    const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const artist = storedUsers.find((user: any) => user.id === artwork.artistId);
-    return artist ? artist.username : "Unknown Artist";
+    await toggleLike(artwork.id);
+    
+    // Update liked status
+    if (currentUser) {
+      const likedArtworks = await getUserLikedArtworks(currentUser.id);
+      setIsLiked(likedArtworks.includes(artwork.id));
+    }
   };
   
   // Calculate time since posting
@@ -75,7 +109,7 @@ const ArtworkCard = ({ artwork }: ArtworkCardProps) => {
             className="hover:text-gallery-accent transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
-            {getArtistName()}
+            {artistName}
           </Link>
         </div>
         <div className="flex items-center justify-between">
