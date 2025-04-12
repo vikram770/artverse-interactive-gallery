@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from "@/integrations/supabase/client";
@@ -58,18 +59,23 @@ export const useNotificationStore = create<NotificationState>()(
           
           if (error) throw error;
           
-          const notifications: Notification[] = (data || []).map(item => ({
-            id: item.id,
-            userId: currentUser.id,
-            type: item.type as 'like' | 'comment' | 'follow' | 'mention',
-            content: item.content,
-            artworkId: item.artwork_id,
-            senderId: item.sender_id,
-            senderName: item.profiles?.username || 'Unknown User',
-            senderAvatar: item.profiles?.avatar,
-            isRead: item.is_read,
-            createdAt: item.created_at
-          }));
+          const notifications: Notification[] = (data || []).map(item => {
+            // Extract profile data properly - it's an object, not an array
+            const profile = item.profiles || {};
+            
+            return {
+              id: item.id,
+              userId: currentUser.id,
+              type: item.type as 'like' | 'comment' | 'follow' | 'mention',
+              content: item.content,
+              artworkId: item.artwork_id,
+              senderId: item.sender_id,
+              senderName: profile.username || 'Unknown User',
+              senderAvatar: profile.avatar,
+              isRead: item.is_read,
+              createdAt: item.created_at
+            };
+          });
           
           const unreadCount = notifications.filter(n => !n.isRead).length;
           
@@ -165,6 +171,9 @@ export const useNotificationStore = create<NotificationState>()(
                 return;
               }
               
+              // Extract profile data properly - it's an object, not an array
+              const profile = data.profiles || {};
+              
               const newNotification: Notification = {
                 id: data.id,
                 userId: currentUser.id,
@@ -172,8 +181,8 @@ export const useNotificationStore = create<NotificationState>()(
                 content: data.content,
                 artworkId: data.artwork_id,
                 senderId: data.sender_id,
-                senderName: data.profiles?.username || 'Unknown User',
-                senderAvatar: data.profiles?.avatar,
+                senderName: profile.username || 'Unknown User',
+                senderAvatar: profile.avatar,
                 isRead: data.is_read,
                 createdAt: data.created_at
               };
