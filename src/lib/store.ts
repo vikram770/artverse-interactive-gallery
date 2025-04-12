@@ -1,4 +1,3 @@
-
 import { Artwork, User, Comment } from "@/types";
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -508,6 +507,98 @@ export const useGalleryStore = create<GalleryState>()(
           return [];
         }
       },
+      toggleLike: async (artworkId: string) => {
+        const { currentUser } = useAuthStore.getState();
+        
+        if (!currentUser) {
+          toast.error("You must be logged in to like artwork");
+          return;
+        }
+        
+        try {
+          // Check if the user has already liked this artwork
+          const { data: existingLike, error: checkError } = await supabase
+            .from('likes')
+            .select('id')
+            .eq('user_id', currentUser.id)
+            .eq('artwork_id', artworkId)
+            .maybeSingle();
+          
+          if (checkError) throw checkError;
+          
+          // Get the artwork details for the notification
+          const artwork = await get().getArtworkById(artworkId);
+          if (!artwork) throw new Error('Artwork not found');
+          
+          if (existingLike) {
+            // Remove the like
+            const { error: unlikeError } = await supabase
+              .from('likes')
+              .delete()
+              .eq('id', existingLike.id);
+            
+            if (unlikeError) throw unlikeError;
+            
+            toast.success("Artwork unliked");
+          } else {
+            // Add the like
+            const { error: likeError } = await supabase
+              .from('likes')
+              .insert({
+                user_id: currentUser.id,
+                artwork_id: artworkId
+              });
+            
+            if (likeError) throw likeError;
+            
+            // Create a notification if the current user is not the artwork owner
+            if (artwork.artistId !== currentUser.id) {
+              const { error: notificationError } = await supabase
+                .from('notifications')
+                .insert({
+                  user_id: artwork.artistId,
+                  type: 'like',
+                  content: `${currentUser.username} liked your artwork "${artwork.title}"`,
+                  artwork_id: artworkId,
+                  sender_id: currentUser.id
+                });
+              
+              if (notificationError) console.error('Error creating notification:', notificationError);
+            }
+            
+            toast.success("Artwork liked");
+          }
+          
+          // Update the artwork in our local state with the new like count
+          const updatedArtwork = await get().getArtworkById(artworkId);
+          
+          if (updatedArtwork) {
+            set({
+              artworks: get().artworks.map(art => 
+                art.id === artworkId ? updatedArtwork : art
+              ),
+              filteredArtworks: get().filteredArtworks.map(art => 
+                art.id === artworkId ? updatedArtwork : art
+              ),
+              selectedArtwork: get().selectedArtwork?.id === artworkId 
+                ? updatedArtwork 
+                : get().selectedArtwork
+            });
+          }
+          
+          // Update user's likedArtworks list
+          const likedArtworks = await get().getUserLikedArtworks(currentUser.id);
+          useAuthStore.setState({
+            currentUser: {
+              ...currentUser,
+              likedArtworks
+            }
+          });
+        } catch (error: any) {
+          console.error('Error toggling like:', error);
+          toast.error(error.message || 'Failed to like/unlike artwork');
+        }
+      },
       addComment: async (comment: Partial<Comment>) => {
         const { currentUser } = useAuthStore.getState();
         
@@ -546,6 +637,25 @@ export const useGalleryStore = create<GalleryState>()(
             };
             
             set({ comments: [...get().comments, newComment] });
+            
+            // Get the artwork details for the notification
+            const artwork = await get().getArtworkById(comment.artworkId!);
+            
+            // Create a notification if the current user is not the artwork owner
+            if (artwork && artwork.artistId !== currentUser.id) {
+              const { error: notificationError } = await supabase
+                .from('notifications')
+                .insert({
+                  user_id: artwork.artistId,
+                  type: 'comment',
+                  content: `${currentUser.username} commented on your artwork "${artwork.title}"`,
+                  artwork_id: comment.artworkId,
+                  sender_id: currentUser.id
+                });
+              
+              if (notificationError) console.error('Error creating notification:', notificationError);
+            }
+            
             toast.success("Comment added successfully");
           }
         } catch (error: any) {
@@ -566,79 +676,6 @@ export const useGalleryStore = create<GalleryState>()(
         } catch (error) {
           console.error('Error fetching likes:', error);
           return [];
-        }
-      },
-      toggleLike: async (artworkId: string) => {
-        const { currentUser } = useAuthStore.getState();
-        
-        if (!currentUser) {
-          toast.error("You must be logged in to like artwork");
-          return;
-        }
-        
-        try {
-          // Check if the user has already liked this artwork
-          const { data: existingLike, error: checkError } = await supabase
-            .from('likes')
-            .select('id')
-            .eq('user_id', currentUser.id)
-            .eq('artwork_id', artworkId)
-            .maybeSingle();
-          
-          if (checkError) throw checkError;
-          
-          if (existingLike) {
-            // Remove the like
-            const { error: unlikeError } = await supabase
-              .from('likes')
-              .delete()
-              .eq('id', existingLike.id);
-            
-            if (unlikeError) throw unlikeError;
-            
-            toast.success("Artwork unliked");
-          } else {
-            // Add the like
-            const { error: likeError } = await supabase
-              .from('likes')
-              .insert({
-                user_id: currentUser.id,
-                artwork_id: artworkId
-              });
-            
-            if (likeError) throw likeError;
-            
-            toast.success("Artwork liked");
-          }
-          
-          // Update the artwork in our local state with the new like count
-          const updatedArtwork = await get().getArtworkById(artworkId);
-          
-          if (updatedArtwork) {
-            set({
-              artworks: get().artworks.map(art => 
-                art.id === artworkId ? updatedArtwork : art
-              ),
-              filteredArtworks: get().filteredArtworks.map(art => 
-                art.id === artworkId ? updatedArtwork : art
-              ),
-              selectedArtwork: get().selectedArtwork?.id === artworkId 
-                ? updatedArtwork 
-                : get().selectedArtwork
-            });
-          }
-          
-          // Update user's likedArtworks list
-          const likedArtworks = await get().getUserLikedArtworks(currentUser.id);
-          useAuthStore.setState({
-            currentUser: {
-              ...currentUser,
-              likedArtworks
-            }
-          });
-        } catch (error: any) {
-          console.error('Error toggling like:', error);
-          toast.error(error.message || 'Failed to like/unlike artwork');
         }
       },
       setSearchQuery: (query: string) => {
