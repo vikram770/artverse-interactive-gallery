@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ import { useAuthStore } from "@/lib/store";
 const AuthForms = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { login, register, isAuthenticated } = useAuthStore();
   
   // Check if we should default to register tab
   const queryParams = new URLSearchParams(location.search);
@@ -58,6 +60,13 @@ const AuthForms = () => {
   const [loginError, setLoginError] = useState("");
   const [registerError, setRegisterError] = useState("");
   
+  // Redirect authenticated users
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/");
+    }
+  }, [isAuthenticated, navigate]);
+  
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
@@ -72,22 +81,18 @@ const AuthForms = () => {
     }
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      // Use the login method from auth store instead of direct Supabase call
+      const success = await login(email, password);
       
-      if (error) {
-        console.error("Login error:", error);
-        setLoginError(error.message);
-        return;
+      if (success) {
+        toast.success("Logged in successfully!");
+        navigate("/");
+      } else {
+        setLoginError("Invalid email or password");
       }
-      
-      toast.success("Logged in successfully!");
-      navigate("/");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      setLoginError("An unexpected error occurred");
+      setLoginError(error.message || "An unexpected error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -119,28 +124,21 @@ const AuthForms = () => {
     }
     
     try {
-      const { error } = await supabase.auth.signUp({
+      // Use the register method from auth store
+      const success = await register({
+        username,
         email,
         password,
-        options: {
-          data: {
-            username,
-            role,
-          }
-        }
+        role
       });
       
-      if (error) {
-        console.error("Registration error:", error);
-        setRegisterError(error.message);
-        return;
+      if (success) {
+        toast.success("Registration successful! Please check your email for verification.");
+        navigate("/");
       }
-      
-      toast.success("Registration successful! Please check your email for verification.");
-      navigate("/");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
-      setRegisterError("An unexpected error occurred");
+      setRegisterError(error.message || "An unexpected error occurred");
     } finally {
       setIsLoading(false);
     }
