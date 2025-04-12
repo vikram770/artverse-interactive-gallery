@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -12,7 +11,7 @@ import {
   Upload,
   Home,
   Calendar,
-  Cube,
+  Box, // Replaced Cube with Box
   Settings
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
@@ -68,7 +67,7 @@ const Navbar = () => {
                   Exhibitions
                 </Link>
                 <Link to="/gallery3d" className="flex items-center gap-2 text-lg font-medium" onClick={closeMenu}>
-                  <Cube className="h-5 w-5" />
+                  <Box className="h-5 w-5" />
                   3D Gallery
                 </Link>
                 {isAuthenticated ? (
