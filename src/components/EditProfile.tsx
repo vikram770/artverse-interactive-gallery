@@ -47,13 +47,15 @@ const EditProfile = () => {
           return;
         }
         
-        setFormData({
-          username: profile.username || "",
-          bio: profile.bio || "",
-          avatar: profile.avatar || "",
-        });
-        
-        setAvatarPreview(profile.avatar || null);
+        if (profile) {
+          setFormData({
+            username: profile.username || "",
+            bio: profile.bio || "",
+            avatar: profile.avatar || "",
+          });
+          
+          setAvatarPreview(profile.avatar || null);
+        }
       } catch (error) {
         console.error("Profile fetch error:", error);
         toast.error("Error loading profile");

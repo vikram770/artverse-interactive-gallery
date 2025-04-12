@@ -9,7 +9,48 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+// Define the Database interface to include our profiles table
+interface CustomDatabase extends Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          username: string | null;
+          avatar: string | null;
+          bio: string | null;
+          role: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          id: string;
+          username?: string | null;
+          avatar?: string | null;
+          bio?: string | null;
+          role?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          username?: string | null;
+          avatar?: string | null;
+          bio?: string | null;
+          role?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+      };
+    } & Database['public']['Tables'];
+    Views: Database['public']['Views'];
+    Functions: Database['public']['Functions'];
+    Enums: Database['public']['Enums'];
+    CompositeTypes: Database['public']['CompositeTypes'];
+  };
+}
+
+export const supabase = createClient<CustomDatabase>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,

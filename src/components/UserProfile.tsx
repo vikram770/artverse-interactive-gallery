@@ -44,16 +44,17 @@ const UserProfile = () => {
         if (profileError) {
           console.error("Error fetching profile:", profileError);
           toast.error("Error fetching your profile");
-        } else {
+        } else if (profileData) {
           setProfile(profileData);
           
-          if (profileData.role === "artist" || profileData.role === "admin") {
+          const userRole = profileData.role;
+          if (userRole === "artist" || userRole === "admin") {
             const artistWorks = getArtworksByArtist(session.user.id);
             setUserArtworks(artistWorks);
           }
           
           // Get liked artworks - will need to be updated when we integrate likes with Supabase
-          const userLikes = [];
+          const userLikes: string[] = [];
           const liked = artworks.filter(artwork => userLikes.includes(artwork.id));
           setLikedArtworks(liked);
         }

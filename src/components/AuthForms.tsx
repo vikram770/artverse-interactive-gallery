@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,6 @@ import { useAuthStore } from "@/lib/store";
 const AuthForms = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { getArtworks } = useAuthStore();
   
   // Check if we should default to register tab
   const queryParams = new URLSearchParams(location.search);
