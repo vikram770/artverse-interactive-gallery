@@ -493,32 +493,41 @@ export const useGalleryStore = create<GalleryState>()(
       },
       getCommentsByArtworkId: async (artworkId: string) => {
         try {
-          // Fix the join syntax by explicitly defining the relationship
+          // Use a different approach for fetching comments and user data
           const { data, error } = await supabase
             .from('comments')
-            .select(`
-              *,
-              user:profiles(id, username, avatar)
-            `)
+            .select('*')
             .eq('artwork_id', artworkId)
             .order('created_at', { ascending: true });
           
           if (error) throw error;
           
-          return (data || []).map(item => ({
-            id: item.id,
-            artworkId: item.artwork_id,
-            userId: item.user_id,
-            text: item.text,
-            createdAt: item.created_at,
-            user: item.user ? {
-              username: item.user.username || 'Unknown User',
-              avatar: item.user.avatar || null
-            } : {
-              username: 'Unknown User',
-              avatar: null
-            }
+          // Now that we have comments, fetch the profiles separately
+          const comments = await Promise.all((data || []).map(async (item) => {
+            // Get user profile for each comment
+            const { data: userData } = await supabase
+              .from('profiles')
+              .select('username, avatar')
+              .eq('id', item.user_id)
+              .single();
+            
+            return {
+              id: item.id,
+              artworkId: item.artwork_id,
+              userId: item.user_id,
+              text: item.text,
+              createdAt: item.created_at,
+              user: userData ? {
+                username: userData.username || 'Unknown User',
+                avatar: userData.avatar || null
+              } : {
+                username: 'Unknown User',
+                avatar: null
+              }
+            };
           }));
+          
+          return comments;
         } catch (error) {
           console.error('Error fetching comments:', error);
           toast.error('Failed to load comments');
@@ -633,24 +642,28 @@ export const useGalleryStore = create<GalleryState>()(
               user_id: currentUser.id,
               text: comment.text
             })
-            .select(`
-              *,
-              user:profiles(id, username, avatar)
-            `)
+            .select('*')
             .single();
           
           if (error) throw error;
           
           if (data) {
+            // Get the user profile
+            const { data: userData } = await supabase
+              .from('profiles')
+              .select('username, avatar')
+              .eq('id', currentUser.id)
+              .single();
+            
             const newComment: Comment = {
               id: data.id,
               artworkId: data.artwork_id,
               userId: data.user_id,
               text: data.text,
               createdAt: data.created_at,
-              user: data.user ? {
-                username: data.user.username || currentUser.username,
-                avatar: data.user.avatar || currentUser.avatar
+              user: userData ? {
+                username: userData.username || currentUser.username,
+                avatar: userData.avatar || currentUser.avatar
               } : {
                 username: currentUser.username,
                 avatar: currentUser.avatar

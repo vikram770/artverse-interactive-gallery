@@ -15,7 +15,7 @@ const CommentItem = ({ comment }: CommentItemProps) => {
   const [avatar, setAvatar] = useState<string | undefined>(comment.user?.avatar || undefined);
   
   useEffect(() => {
-    // Check if we already have user info from the joined query
+    // Check if we already have user info from the query
     if (comment.user?.username) {
       setUsername(comment.user.username);
       setAvatar(comment.user.avatar || undefined);
