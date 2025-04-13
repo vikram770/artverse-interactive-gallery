@@ -4,27 +4,47 @@ import { Link } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { Comment } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CommentItemProps {
   comment: Comment;
 }
 
 const CommentItem = ({ comment }: CommentItemProps) => {
-  const [username, setUsername] = useState<string>("Loading...");
-  const [avatar, setAvatar] = useState<string | undefined>(undefined);
+  const [username, setUsername] = useState<string>(comment.user?.username || "Loading...");
+  const [avatar, setAvatar] = useState<string | undefined>(comment.user?.avatar || undefined);
   
   useEffect(() => {
-    // Get user info
-    const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const user = storedUsers.find((u: any) => u.id === comment.userId);
-    
-    if (user) {
-      setUsername(user.username);
-      setAvatar(user.avatar);
-    } else {
-      setUsername("Unknown User");
+    // Check if we already have user info from the joined query
+    if (comment.user?.username) {
+      setUsername(comment.user.username);
+      setAvatar(comment.user.avatar || undefined);
+      return;
     }
-  }, [comment.userId]);
+    
+    // If not, fetch the user info directly
+    const fetchUserData = async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('username, avatar')
+          .eq('id', comment.userId)
+          .single();
+        
+        if (data) {
+          setUsername(data.username || 'Unknown User');
+          setAvatar(data.avatar || undefined);
+        } else {
+          setUsername("Unknown User");
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        setUsername("Unknown User");
+      }
+    };
+    
+    fetchUserData();
+  }, [comment.userId, comment.user]);
   
   const getTimeAgo = () => {
     try {

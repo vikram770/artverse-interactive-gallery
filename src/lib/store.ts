@@ -1,4 +1,3 @@
-
 import { Artwork, User, Comment } from "@/types";
 import { createClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
@@ -494,15 +493,12 @@ export const useGalleryStore = create<GalleryState>()(
       },
       getCommentsByArtworkId: async (artworkId: string) => {
         try {
-          // Properly join profiles data with comments
+          // Fix the join syntax - use proper foreign key relationship
           const { data, error } = await supabase
             .from('comments')
             .select(`
               *,
-              user:user_id(
-                username,
-                avatar
-              )
+              profiles:profiles(username, avatar)
             `)
             .eq('artwork_id', artworkId)
             .order('created_at', { ascending: true });
@@ -516,8 +512,8 @@ export const useGalleryStore = create<GalleryState>()(
             text: item.text,
             createdAt: item.created_at,
             user: {
-              username: item.user?.username || 'Unknown User',
-              avatar: item.user?.avatar || null
+              username: item.profiles?.username || 'Unknown User',
+              avatar: item.profiles?.avatar || null
             }
           }));
         } catch (error) {
@@ -636,10 +632,7 @@ export const useGalleryStore = create<GalleryState>()(
             })
             .select(`
               *,
-              user:user_id(
-                username,
-                avatar
-              )
+              profiles:profiles(username, avatar)
             `)
             .single();
           
@@ -653,8 +646,8 @@ export const useGalleryStore = create<GalleryState>()(
               text: data.text,
               createdAt: data.created_at,
               user: {
-                username: data.user?.username || currentUser.username,
-                avatar: data.user?.avatar || currentUser.avatar
+                username: data.profiles?.username || currentUser.username,
+                avatar: data.profiles?.avatar || currentUser.avatar
               }
             };
             
@@ -823,5 +816,3 @@ export const initializeAuth = async () => {
   // Initialize gallery data
   useGalleryStore.getState().getArtworks();
 };
-
-// Export the remaining code from store.ts
