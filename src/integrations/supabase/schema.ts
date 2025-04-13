@@ -7,6 +7,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type UserRole = "visitor" | "artist" | "admin";
+
 export interface Database {
   public: {
     Tables: {
@@ -16,7 +18,7 @@ export interface Database {
           username: string | null
           avatar: string | null
           bio: string | null
-          role: string | null
+          role: UserRole | null
           created_at: string | null
           updated_at: string | null
         }
@@ -25,7 +27,7 @@ export interface Database {
           username?: string | null
           avatar?: string | null
           bio?: string | null
-          role?: string | null
+          role?: UserRole | null
           created_at?: string | null
           updated_at?: string | null
         }
@@ -34,7 +36,7 @@ export interface Database {
           username?: string | null
           avatar?: string | null
           bio?: string | null
-          role?: string | null
+          role?: UserRole | null
           created_at?: string | null
           updated_at?: string | null
         }

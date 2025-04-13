@@ -1,8 +1,11 @@
+
 import { Artwork, User, Comment } from "@/types";
+import { createClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { UserRole } from "@/integrations/supabase/schema";
 
 interface AuthState {
   currentUser: User | null;
@@ -40,7 +43,7 @@ export const useAuthStore = create<AuthState>()(
               email: data.user.email || '',
               username: profile?.username || data.user.email?.split('@')[0] || '',
               password: '', // We don't store passwords
-              role: profile?.role || 'visitor',
+              role: (profile?.role as 'visitor' | 'artist' | 'admin') || 'visitor',
               avatar: profile?.avatar || '',
               bio: profile?.bio || '',
               createdAt: data.user.created_at || new Date().toISOString(),
@@ -400,7 +403,7 @@ export const useGalleryStore = create<GalleryState>()(
           
           if (fetchError) throw fetchError;
           
-          if (existingArtwork.artist_id !== currentUser.id && currentUser.role !== 'admin') {
+          if (existingArtwork && existingArtwork.artist_id !== currentUser.id && currentUser.role !== 'admin') {
             toast.error("You don't have permission to edit this artwork");
             return;
           }
@@ -465,7 +468,7 @@ export const useGalleryStore = create<GalleryState>()(
           
           if (fetchError) throw fetchError;
           
-          if (existingArtwork.artist_id !== currentUser.id && currentUser.role !== 'admin') {
+          if (existingArtwork && existingArtwork.artist_id !== currentUser.id && currentUser.role !== 'admin') {
             toast.error("You don't have permission to delete this artwork");
             return;
           }
@@ -491,11 +494,15 @@ export const useGalleryStore = create<GalleryState>()(
       },
       getCommentsByArtworkId: async (artworkId: string) => {
         try {
+          // Properly join profiles data with comments
           const { data, error } = await supabase
             .from('comments')
             .select(`
               *,
-              profiles:user_id (username, avatar)
+              user:user_id(
+                username,
+                avatar
+              )
             `)
             .eq('artwork_id', artworkId)
             .order('created_at', { ascending: true });
@@ -509,8 +516,8 @@ export const useGalleryStore = create<GalleryState>()(
             text: item.text,
             createdAt: item.created_at,
             user: {
-              username: item.profiles?.username || 'Unknown User',
-              avatar: item.profiles?.avatar || null
+              username: item.user?.username || 'Unknown User',
+              avatar: item.user?.avatar || null
             }
           }));
         } catch (error) {
@@ -629,7 +636,10 @@ export const useGalleryStore = create<GalleryState>()(
             })
             .select(`
               *,
-              profiles:user_id (username, avatar)
+              user:user_id(
+                username,
+                avatar
+              )
             `)
             .single();
           
@@ -643,8 +653,8 @@ export const useGalleryStore = create<GalleryState>()(
               text: data.text,
               createdAt: data.created_at,
               user: {
-                username: data.profiles?.username || currentUser.username,
-                avatar: data.profiles?.avatar || currentUser.avatar
+                username: data.user?.username || currentUser.username,
+                avatar: data.user?.avatar || currentUser.avatar
               }
             };
             
@@ -797,7 +807,7 @@ export const initializeAuth = async () => {
       email: session.user.email || '',
       username: profile?.username || session.user.email?.split('@')[0] || '',
       password: '', // We don't store passwords
-      role: profile?.role || 'visitor',
+      role: (profile?.role as 'visitor' | 'artist' | 'admin') || 'visitor',
       avatar: profile?.avatar || '',
       bio: profile?.bio || '',
       createdAt: session.user.created_at || new Date().toISOString(),
@@ -813,3 +823,5 @@ export const initializeAuth = async () => {
   // Initialize gallery data
   useGalleryStore.getState().getArtworks();
 };
+
+// Export the remaining code from store.ts
