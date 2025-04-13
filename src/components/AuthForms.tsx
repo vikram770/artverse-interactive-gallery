@@ -83,7 +83,6 @@ const AuthForms = () => {
       const success = await login(email, password);
       
       if (success) {
-        toast.success("Logged in successfully!");
         navigate("/");
       } else {
         setLoginError("Invalid email or password");
@@ -122,6 +121,7 @@ const AuthForms = () => {
     }
     
     try {
+      console.log("Registering with data:", { username, email, password, role });
       const success = await register({
         username,
         email,
@@ -131,7 +131,7 @@ const AuthForms = () => {
       
       if (success) {
         toast.success("Registration successful!");
-        navigate("/");
+        // Don't navigate immediately - let auth state change trigger the redirect
       } else {
         setRegisterError("Registration failed. Please try again.");
       }

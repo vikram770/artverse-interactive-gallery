@@ -48,7 +48,6 @@ export const useAuthStore = create<AuthState>()(
             };
             
             set({ currentUser, isAuthenticated: true });
-            toast.success("Logged in successfully!");
             return true;
           }
           
@@ -61,37 +60,50 @@ export const useAuthStore = create<AuthState>()(
       },
       register: async (userData: Partial<User>) => {
         try {
+          // First, sign up the user
           const { data, error } = await supabase.auth.signUp({
             email: userData.email || '',
             password: userData.password || '',
+            options: {
+              data: {
+                username: userData.username,
+                role: userData.role || 'visitor'
+              }
+            }
           });
           
           if (error) throw error;
           
           if (data.user) {
-            // Update the profile
+            // Create or update the profile record
             const { error: profileError } = await supabase
               .from('profiles')
-              .update({
+              .upsert({
+                id: data.user.id,
                 username: userData.username,
-                role: userData.role || 'visitor'
-              })
-              .eq('id', data.user.id);
+                role: userData.role || 'visitor',
+                created_at: new Date().toISOString()
+              });
             
-            if (profileError) throw profileError;
+            if (profileError) {
+              console.error('Profile creation error:', profileError);
+              // Don't throw here, we still created the auth user
+            }
             
-            const currentUser: User = {
-              id: data.user.id,
-              email: data.user.email || '',
-              username: userData.username || data.user.email?.split('@')[0] || '',
-              password: '', // We don't store passwords
-              role: userData.role || 'visitor',
-              createdAt: data.user.created_at || new Date().toISOString(),
-              likedArtworks: []
-            };
-            
-            set({ currentUser, isAuthenticated: true });
-            toast.success("Registration successful!");
+            // For immediate login if email confirmation is disabled
+            if (data.session) {
+              const currentUser: User = {
+                id: data.user.id,
+                email: data.user.email || '',
+                username: userData.username || data.user.email?.split('@')[0] || '',
+                password: '', // We don't store passwords
+                role: userData.role || 'visitor',
+                createdAt: data.user.created_at || new Date().toISOString(),
+                likedArtworks: []
+              };
+              
+              set({ currentUser, isAuthenticated: true });
+            }
             
             return true;
           }
