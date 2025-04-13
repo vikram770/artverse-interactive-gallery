@@ -493,12 +493,12 @@ export const useGalleryStore = create<GalleryState>()(
       },
       getCommentsByArtworkId: async (artworkId: string) => {
         try {
-          // Update join syntax to correctly reference the user_id -> id relationship
+          // Fix the join syntax by explicitly defining the relationship
           const { data, error } = await supabase
             .from('comments')
             .select(`
               *,
-              user:profiles(username, avatar)
+              user:profiles(id, username, avatar)
             `)
             .eq('artwork_id', artworkId)
             .order('created_at', { ascending: true });
@@ -511,9 +511,12 @@ export const useGalleryStore = create<GalleryState>()(
             userId: item.user_id,
             text: item.text,
             createdAt: item.created_at,
-            user: {
-              username: item.user?.username || 'Unknown User',
-              avatar: item.user?.avatar || null
+            user: item.user ? {
+              username: item.user.username || 'Unknown User',
+              avatar: item.user.avatar || null
+            } : {
+              username: 'Unknown User',
+              avatar: null
             }
           }));
         } catch (error) {
@@ -632,7 +635,7 @@ export const useGalleryStore = create<GalleryState>()(
             })
             .select(`
               *,
-              user:profiles(username, avatar)
+              user:profiles(id, username, avatar)
             `)
             .single();
           
@@ -645,9 +648,12 @@ export const useGalleryStore = create<GalleryState>()(
               userId: data.user_id,
               text: data.text,
               createdAt: data.created_at,
-              user: {
-                username: data.user?.username || currentUser.username,
-                avatar: data.user?.avatar || currentUser.avatar
+              user: data.user ? {
+                username: data.user.username || currentUser.username,
+                avatar: data.user.avatar || currentUser.avatar
+              } : {
+                username: currentUser.username,
+                avatar: currentUser.avatar
               }
             };
             
