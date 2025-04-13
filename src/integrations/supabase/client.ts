@@ -20,9 +20,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     headers: {
       'X-Client-Info': 'supabase-js-web/2.49.4'
     },
-    fetch: (...args) => {
-      console.log('Supabase fetch request:', args[0]);
-      return fetch(...args).catch(err => {
+    fetch: (url, options) => {
+      console.log('Supabase fetch request:', url);
+      return fetch(url, options).catch(err => {
         console.error('Supabase fetch error:', err);
         throw err;
       });
