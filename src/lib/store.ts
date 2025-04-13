@@ -493,12 +493,12 @@ export const useGalleryStore = create<GalleryState>()(
       },
       getCommentsByArtworkId: async (artworkId: string) => {
         try {
-          // Fix the join syntax - use proper foreign key relationship
+          // Update join syntax to correctly reference the user_id -> id relationship
           const { data, error } = await supabase
             .from('comments')
             .select(`
               *,
-              profiles:profiles(username, avatar)
+              user:profiles(username, avatar)
             `)
             .eq('artwork_id', artworkId)
             .order('created_at', { ascending: true });
@@ -512,8 +512,8 @@ export const useGalleryStore = create<GalleryState>()(
             text: item.text,
             createdAt: item.created_at,
             user: {
-              username: item.profiles?.username || 'Unknown User',
-              avatar: item.profiles?.avatar || null
+              username: item.user?.username || 'Unknown User',
+              avatar: item.user?.avatar || null
             }
           }));
         } catch (error) {
@@ -632,7 +632,7 @@ export const useGalleryStore = create<GalleryState>()(
             })
             .select(`
               *,
-              profiles:profiles(username, avatar)
+              user:profiles(username, avatar)
             `)
             .single();
           
@@ -646,8 +646,8 @@ export const useGalleryStore = create<GalleryState>()(
               text: data.text,
               createdAt: data.created_at,
               user: {
-                username: data.profiles?.username || currentUser.username,
-                avatar: data.profiles?.avatar || currentUser.avatar
+                username: data.user?.username || currentUser.username,
+                avatar: data.user?.avatar || currentUser.avatar
               }
             };
             
