@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/store";
+import { AlertCircle } from "lucide-react";
 
 const AuthForms = () => {
   const navigate = useNavigate();
@@ -58,6 +59,7 @@ const AuthForms = () => {
   // Form errors
   const [loginError, setLoginError] = useState("");
   const [registerError, setRegisterError] = useState("");
+  const [connectionError, setConnectionError] = useState(false);
   
   // Redirect authenticated users
   useEffect(() => {
@@ -69,6 +71,7 @@ const AuthForms = () => {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
+    setConnectionError(false);
     setIsLoading(true);
     
     const { email, password } = loginData;
@@ -89,7 +92,12 @@ const AuthForms = () => {
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      setLoginError(error.message || "An unexpected error occurred");
+      if (error.message?.includes("Load failed")) {
+        setConnectionError(true);
+        toast.error("Cannot connect to authentication service. Please check your internet connection and try again.");
+      } else {
+        setLoginError(error.message || "An unexpected error occurred");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -98,6 +106,7 @@ const AuthForms = () => {
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterError("");
+    setConnectionError(false);
     setIsLoading(true);
     
     const { username, email, password, confirmPassword, role } = registerData;
@@ -137,7 +146,12 @@ const AuthForms = () => {
       }
     } catch (error: any) {
       console.error("Registration error:", error);
-      setRegisterError(error.message || "An unexpected error occurred");
+      if (error.message?.includes("Load failed")) {
+        setConnectionError(true);
+        toast.error("Cannot connect to authentication service. Please check your internet connection and try again.");
+      } else {
+        setRegisterError(error.message || "An unexpected error occurred");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -145,6 +159,23 @@ const AuthForms = () => {
   
   return (
     <div className="max-w-md mx-auto px-4 py-12">
+      {connectionError && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+          <div className="flex items-start">
+            <AlertCircle className="text-red-500 mr-2 h-5 w-5 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-medium text-red-800">Connection Error</h3>
+              <p className="text-sm text-red-700 mt-1">
+                Cannot connect to authentication service. Please check your internet connection and try again.
+              </p>
+              <p className="text-sm text-red-700 mt-1">
+                If the problem persists, the service might be down or experiencing issues.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="login">Login</TabsTrigger>

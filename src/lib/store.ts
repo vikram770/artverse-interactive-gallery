@@ -56,8 +56,10 @@ export const useAuthStore = create<AuthState>()(
           return false;
         } catch (error: any) {
           console.error('Login error:', error);
-          toast.error(error.message || "Invalid email or password");
-          return false;
+          if (error.message === 'Load failed') {
+            throw new Error('Connection to authentication service failed. Please check your internet connection.');
+          }
+          throw error;
         }
       },
       register: async (userData: Partial<User>) => {
@@ -113,8 +115,10 @@ export const useAuthStore = create<AuthState>()(
           return false;
         } catch (error: any) {
           console.error('Registration error:', error);
-          toast.error(error.message || "Registration failed");
-          return false;
+          if (error.message === 'Load failed') {
+            throw new Error('Connection to authentication service failed. Please check your internet connection.');
+          }
+          throw error;
         }
       },
       logout: async () => {
