@@ -14,9 +14,8 @@ import { useGalleryStore, useAuthStore } from "@/lib/store";
 const UserProfile = () => {
   const navigate = useNavigate();
   const { getArtworksByArtist, getUserLikedArtworks } = useGalleryStore();
-  const { logout } = useAuthStore();
+  const { logout, currentUser } = useAuthStore();
   
-  const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userArtworks, setUserArtworks] = useState<Artwork[]>([]);
@@ -27,37 +26,64 @@ const UserProfile = () => {
     const checkUser = async () => {
       try {
         setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
         
-        if (!session?.user) {
+        if (!currentUser) {
           navigate("/login");
           return;
         }
-        
-        setUser(session.user);
         
         // Fetch user profile
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', session.user.id)
+          .eq('id', currentUser.id)
           .single();
         
         if (profileError) {
           console.error("Error fetching profile:", profileError);
-          toast.error("Error fetching your profile");
+          
+          // If profile doesn't exist, create it
+          if (profileError.code === 'PGRST116') {
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: currentUser.id,
+                username: currentUser.username || currentUser.email?.split('@')[0],
+                role: currentUser.role || 'visitor'
+              });
+              
+            if (insertError) {
+              console.error("Error creating profile:", insertError);
+              toast.error("Error creating your profile");
+            } else {
+              // Try fetching again after creation
+              const { data: newProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .single();
+                
+              if (newProfile) {
+                setProfile(newProfile);
+              }
+            }
+          } else {
+            toast.error("Error fetching your profile");
+          }
         } else if (profileData) {
           setProfile(profileData);
           
           const userRole = profileData.role;
           if (userRole === "artist" || userRole === "admin") {
+            console.log("Fetching artworks for artist:", currentUser.id);
             // Load user's artworks
-            const artistWorks = await getArtworksByArtist(session.user.id);
+            const artistWorks = await getArtworksByArtist(currentUser.id);
+            console.log("Artist works:", artistWorks);
             setUserArtworks(artistWorks);
           }
           
           // Get liked artworks
-          const likedIds = await getUserLikedArtworks(session.user.id);
+          const likedIds = await getUserLikedArtworks(currentUser.id);
           
           if (likedIds.length > 0) {
             // Fetch artwork details for each liked artwork
@@ -103,8 +129,6 @@ const UserProfile = () => {
       (event, session) => {
         if (event === "SIGNED_OUT") {
           navigate("/login");
-        } else if (session?.user) {
-          setUser(session.user);
         }
       }
     );
@@ -112,7 +136,7 @@ const UserProfile = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate, getArtworksByArtist, getUserLikedArtworks]);
+  }, [navigate, getArtworksByArtist, getUserLikedArtworks, currentUser]);
   
   const handleLogout = async () => {
     try {
@@ -127,8 +151,8 @@ const UserProfile = () => {
     return <div className="py-12 text-center">Loading...</div>;
   }
   
-  if (!user || !profile) {
-    return null;
+  if (!currentUser || !profile) {
+    return <div className="py-12 text-center">Please log in to view your profile.</div>;
   }
   
   return (
@@ -138,12 +162,12 @@ const UserProfile = () => {
           <Avatar className="w-24 h-24">
             <AvatarImage src={profile.avatar} alt={profile.username} />
             <AvatarFallback className="text-2xl">
-              {profile.username?.slice(0, 2).toUpperCase() || user.email?.slice(0, 2).toUpperCase()}
+              {profile.username?.slice(0, 2).toUpperCase() || currentUser.email?.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1 text-center md:text-left">
-            <h1 className="text-2xl font-bold mb-2">{profile.username || user.email}</h1>
+            <h1 className="text-2xl font-bold mb-2">{profile.username || currentUser.email}</h1>
             <p className="text-gray-500 mb-2">
               {profile.role === "artist" ? "Artist" : "Art Enthusiast"}
             </p>

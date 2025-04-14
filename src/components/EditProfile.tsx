@@ -8,12 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthStore } from "@/lib/store";
 
 const EditProfile = () => {
   const navigate = useNavigate();
+  const { currentUser, updateUserProfile } = useAuthStore();
   
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
   const [formData, setFormData] = useState({
     username: "",
     bio: "",
@@ -25,29 +26,47 @@ const EditProfile = () => {
   useEffect(() => {
     const getProfile = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session?.user) {
+        if (!currentUser) {
           navigate("/login");
           return;
         }
-        
-        setUser(session.user);
         
         // Fetch profile data
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', session.user.id)
+          .eq('id', currentUser.id)
           .single();
         
         if (error) {
           console.error("Error fetching profile:", error);
-          toast.error("Error fetching profile data");
-          return;
-        }
-        
-        if (profile) {
+          
+          // If profile doesn't exist, create it
+          if (error.code === 'PGRST116') {
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: currentUser.id,
+                username: currentUser.username || currentUser.email?.split('@')[0],
+                role: currentUser.role || 'visitor'
+              });
+              
+            if (insertError) {
+              console.error("Error creating profile:", insertError);
+              toast.error("Error creating your profile");
+            } else {
+              setFormData({
+                username: currentUser.username || currentUser.email?.split('@')[0] || "",
+                bio: currentUser.bio || "",
+                avatar: currentUser.avatar || "",
+              });
+              
+              setAvatarPreview(currentUser.avatar || null);
+            }
+          } else {
+            toast.error("Error fetching your profile");
+          }
+        } else if (profile) {
           setFormData({
             username: profile.username || "",
             bio: profile.bio || "",
@@ -65,7 +84,7 @@ const EditProfile = () => {
     };
     
     getProfile();
-  }, [navigate]);
+  }, [currentUser, navigate]);
   
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,7 +111,7 @@ const EditProfile = () => {
       return;
     }
     
-    if (!user) {
+    if (!currentUser) {
       toast.error("You must be logged in to update your profile");
       return;
     }
@@ -103,17 +122,24 @@ const EditProfile = () => {
       // Update profile in Supabase
       const { error } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          id: currentUser.id,
           username: formData.username,
           bio: formData.bio,
           avatar: formData.avatar,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
+        });
       
       if (error) {
         throw error;
       }
+      
+      // Update the local user state
+      await updateUserProfile({
+        username: formData.username,
+        bio: formData.bio,
+        avatar: formData.avatar
+      });
       
       toast.success("Profile updated successfully");
       navigate("/profile");
@@ -125,7 +151,7 @@ const EditProfile = () => {
     }
   };
   
-  if (loading && !user) {
+  if (loading && !currentUser) {
     return <div className="py-12 text-center">Loading...</div>;
   }
   

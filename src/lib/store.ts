@@ -335,13 +335,14 @@ export const useGalleryStore = create<GalleryState>()(
         }
         
         try {
+          console.log("Adding artwork with artist_id:", currentUser.id);
           const { data, error } = await supabase
             .from('artworks')
             .insert({
               title: artworkData.title || 'Untitled',
               description: artworkData.description || '',
               image_url: artworkData.imageUrl || '',
-              artist_id: currentUser.id,
+              artist_id: currentUser.id, // Make sure this is a proper UUID
               category: artworkData.category || 'Other',
               medium: artworkData.medium || '',
               dimensions: artworkData.dimensions || '',
@@ -353,7 +354,10 @@ export const useGalleryStore = create<GalleryState>()(
             .select()
             .single();
           
-          if (error) throw error;
+          if (error) {
+            console.error("Error adding artwork:", error);
+            throw error;
+          }
           
           if (data) {
             const newArtwork: Artwork = {
@@ -803,6 +807,7 @@ export const initializeAuth = async () => {
   const { data: { session } } = await supabase.auth.getSession();
   
   if (session?.user) {
+    console.log("Session found, user ID:", session.user.id);
     // Get the user profile
     const { data: profile } = await supabase
       .from('profiles')

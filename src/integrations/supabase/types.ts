@@ -9,7 +9,195 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      artworks: {
+        Row: {
+          artist_id: string
+          category: string | null
+          created_at: string | null
+          description: string | null
+          dimensions: string | null
+          id: string
+          image_url: string
+          is_for_sale: boolean | null
+          likes: number | null
+          medium: string | null
+          price: number | null
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+          views: number | null
+          year: number | null
+        }
+        Insert: {
+          artist_id: string
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          dimensions?: string | null
+          id?: string
+          image_url: string
+          is_for_sale?: boolean | null
+          likes?: number | null
+          medium?: string | null
+          price?: number | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string | null
+          views?: number | null
+          year?: number | null
+        }
+        Update: {
+          artist_id?: string
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          dimensions?: string | null
+          id?: string
+          image_url?: string
+          is_for_sale?: boolean | null
+          likes?: number | null
+          medium?: string | null
+          price?: number | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+          views?: number | null
+          year?: number | null
+        }
+        Relationships: []
+      }
+      comments: {
+        Row: {
+          artwork_id: string | null
+          created_at: string | null
+          id: string
+          text: string
+          user_id: string | null
+        }
+        Insert: {
+          artwork_id?: string | null
+          created_at?: string | null
+          id?: string
+          text: string
+          user_id?: string | null
+        }
+        Update: {
+          artwork_id?: string | null
+          created_at?: string | null
+          id?: string
+          text?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_artwork_id_fkey"
+            columns: ["artwork_id"]
+            isOneToOne: false
+            referencedRelation: "artworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      likes: {
+        Row: {
+          artwork_id: string | null
+          created_at: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          artwork_id?: string | null
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          artwork_id?: string | null
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "likes_artwork_id_fkey"
+            columns: ["artwork_id"]
+            isOneToOne: false
+            referencedRelation: "artworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          artwork_id: string | null
+          content: string
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          sender_id: string | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          artwork_id?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          sender_id?: string | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          artwork_id?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          sender_id?: string | null
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_artwork_id_fkey"
+            columns: ["artwork_id"]
+            isOneToOne: false
+            referencedRelation: "artworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar: string | null
+          bio: string | null
+          created_at: string | null
+          id: string
+          role: string | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar?: string | null
+          bio?: string | null
+          created_at?: string | null
+          id: string
+          role?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar?: string | null
+          bio?: string | null
+          created_at?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
