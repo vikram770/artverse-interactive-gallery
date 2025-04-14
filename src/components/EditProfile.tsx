@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +39,7 @@ const EditProfile = () => {
         
         if (error) {
           console.error("Error fetching profile:", error);
+          console.log("Current user ID:", currentUser.id); // Log the user ID for debugging
           
           // If profile doesn't exist, create it
           if (error.code === 'PGRST116') {

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -160,19 +159,19 @@ const UserProfile = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10">
           <Avatar className="w-24 h-24">
-            <AvatarImage src={profile.avatar} alt={profile.username} />
+            <AvatarImage src={profile?.avatar} alt={profile?.username} />
             <AvatarFallback className="text-2xl">
-              {profile.username?.slice(0, 2).toUpperCase() || currentUser.email?.slice(0, 2).toUpperCase()}
+              {profile?.username?.slice(0, 2).toUpperCase() || currentUser?.email?.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1 text-center md:text-left">
-            <h1 className="text-2xl font-bold mb-2">{profile.username || currentUser.email}</h1>
+            <h1 className="text-2xl font-bold mb-2">{profile?.username || currentUser?.email}</h1>
             <p className="text-gray-500 mb-2">
-              {profile.role === "artist" ? "Artist" : "Art Enthusiast"}
+              {profile?.role === "artist" ? "Artist" : "Art Enthusiast"}
             </p>
             
-            {profile.bio && (
+            {profile?.bio && (
               <p className="text-gray-700 mb-4">{profile.bio}</p>
             )}
             
@@ -182,7 +181,7 @@ const UserProfile = () => {
                 <span>{likedArtworks.length} Likes</span>
               </div>
               
-              {profile.role === "artist" && (
+              {profile?.role === "artist" && (
                 <div className="flex items-center">
                   <Image className="mr-2 h-4 w-4 text-gray-500" />
                   <span>{userArtworks.length} Artworks</span>
@@ -191,7 +190,7 @@ const UserProfile = () => {
             </div>
             
             <div className="flex flex-wrap justify-center md:justify-start gap-2">
-              {profile.role === "artist" && (
+              {profile?.role === "artist" && (
                 <Button 
                   onClick={() => navigate("/upload")}
                   className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
@@ -213,10 +212,10 @@ const UserProfile = () => {
           </div>
         </div>
         
-        <Tabs defaultValue={profile.role === "artist" ? "uploaded" : "liked"}>
+        <Tabs defaultValue={profile?.role === "artist" ? "uploaded" : "liked"}>
           <TabsList className="w-full grid grid-cols-2">
             <TabsTrigger value="liked">Liked Artworks</TabsTrigger>
-            {(profile.role === "artist" || profile.role === "admin") && (
+            {(profile?.role === "artist" || profile?.role === "admin") && (
               <TabsTrigger value="uploaded">My Artworks</TabsTrigger>
             )}
           </TabsList>
@@ -240,7 +239,7 @@ const UserProfile = () => {
             )}
           </TabsContent>
           
-          {(profile.role === "artist" || profile.role === "admin") && (
+          {(profile?.role === "artist" || profile?.role === "admin") && (
             <TabsContent value="uploaded" className="py-6">
               {userArtworks.length === 0 ? (
                 <div className="text-center py-12">
