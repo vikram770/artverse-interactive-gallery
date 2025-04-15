@@ -30,12 +30,16 @@ export const useAuthStore = create<AuthState>()(
           if (error) throw error;
           
           if (data.user) {
+            console.log("Login successful, user:", data.user.id);
+            
             // Get the user profile
             const { data: profile } = await supabase
               .from('profiles')
               .select('*')
               .eq('id', data.user.id)
               .single();
+            
+            console.log("User profile:", profile);
             
             const currentUser: User = {
               id: data.user.id,
@@ -50,6 +54,7 @@ export const useAuthStore = create<AuthState>()(
             };
             
             set({ currentUser, isAuthenticated: true });
+            console.log("Auth state updated: isAuthenticated=true");
             return true;
           }
           
@@ -64,6 +69,8 @@ export const useAuthStore = create<AuthState>()(
       },
       register: async (userData: Partial<User>) => {
         try {
+          console.log("Starting registration process for email:", userData.email);
+          
           // First, sign up the user
           const { data, error } = await supabase.auth.signUp({
             email: userData.email || '',
@@ -76,9 +83,16 @@ export const useAuthStore = create<AuthState>()(
             }
           });
           
-          if (error) throw error;
+          if (error) {
+            console.error("Signup error:", error);
+            throw error;
+          }
+          
+          console.log("User signup response:", data);
           
           if (data.user) {
+            console.log("User created with ID:", data.user.id);
+            
             // Create or update the profile record
             const { error: profileError } = await supabase
               .from('profiles')
@@ -92,10 +106,14 @@ export const useAuthStore = create<AuthState>()(
             if (profileError) {
               console.error('Profile creation error:', profileError);
               // Don't throw here, we still created the auth user
+            } else {
+              console.log("Profile created successfully");
             }
             
             // For immediate login if email confirmation is disabled
             if (data.session) {
+              console.log("Session available, setting authenticated state");
+              
               const currentUser: User = {
                 id: data.user.id,
                 email: data.user.email || '',
@@ -107,11 +125,15 @@ export const useAuthStore = create<AuthState>()(
               };
               
               set({ currentUser, isAuthenticated: true });
+              console.log("Auth state updated after registration: isAuthenticated=true");
+            } else {
+              console.log("No session available after registration, user may need to confirm email");
             }
             
             return true;
           }
           
+          console.error("Registration failed: No user data returned");
           return false;
         } catch (error: any) {
           console.error('Registration error:', error);
@@ -803,44 +825,56 @@ export const useGalleryStore = create<GalleryState>()(
 
 // Initialize data in Supabase 
 export const initializeAuth = async () => {
-  // Check for existing session
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (session?.user) {
-    console.log("Session found, user ID:", session.user.id);
-    // Get the user profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
+  try {
+    console.log("Initializing auth state...");
+    // Check for existing session
+    const { data: { session } } = await supabase.auth.getSession();
     
-    // Get user's liked artworks
-    const { data: likes } = await supabase
-      .from('likes')
-      .select('artwork_id')
-      .eq('user_id', session.user.id);
+    if (session?.user) {
+      console.log("Session found, user ID:", session.user.id);
+      
+      // Get the user profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+      
+      console.log("User profile from initialization:", profile);
+      
+      // Get user's liked artworks
+      const { data: likes } = await supabase
+        .from('likes')
+        .select('artwork_id')
+        .eq('user_id', session.user.id);
+      
+      const likedArtworks = (likes || []).map(like => like.artwork_id);
+      
+      const currentUser: User = {
+        id: session.user.id,
+        email: session.user.email || '',
+        username: profile?.username || session.user.email?.split('@')[0] || '',
+        password: '', // We don't store passwords
+        role: (profile?.role as 'visitor' | 'artist' | 'admin') || 'visitor',
+        avatar: profile?.avatar || '',
+        bio: profile?.bio || '',
+        createdAt: session.user.created_at || new Date().toISOString(),
+        likedArtworks: likedArtworks
+      };
+      
+      useAuthStore.setState({
+        currentUser,
+        isAuthenticated: true
+      });
+      
+      console.log("Auth state initialized: isAuthenticated=true");
+    } else {
+      console.log("No session found, user is not authenticated");
+    }
     
-    const likedArtworks = (likes || []).map(like => like.artwork_id);
-    
-    const currentUser: User = {
-      id: session.user.id,
-      email: session.user.email || '',
-      username: profile?.username || session.user.email?.split('@')[0] || '',
-      password: '', // We don't store passwords
-      role: (profile?.role as 'visitor' | 'artist' | 'admin') || 'visitor',
-      avatar: profile?.avatar || '',
-      bio: profile?.bio || '',
-      createdAt: session.user.created_at || new Date().toISOString(),
-      likedArtworks: likedArtworks
-    };
-    
-    useAuthStore.setState({
-      currentUser,
-      isAuthenticated: true
-    });
+    // Initialize gallery data
+    useGalleryStore.getState().getArtworks();
+  } catch (error) {
+    console.error("Error initializing auth:", error);
   }
-  
-  // Initialize gallery data
-  useGalleryStore.getState().getArtworks();
 };

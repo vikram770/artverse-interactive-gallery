@@ -12,7 +12,9 @@ const LoginPage = () => {
   
   // Redirect authenticated users to home page
   useEffect(() => {
+    console.log("LoginPage: Authentication status:", isAuthenticated);
     if (isAuthenticated) {
+      console.log("LoginPage: User is authenticated, redirecting to home page");
       navigate("/");
     }
   }, [isAuthenticated, navigate]);

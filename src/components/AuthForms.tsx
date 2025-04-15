@@ -64,6 +64,7 @@ const AuthForms = () => {
   // Redirect authenticated users
   useEffect(() => {
     if (isAuthenticated) {
+      console.log("User is authenticated, redirecting to home page");
       navigate("/");
     }
   }, [isAuthenticated, navigate]);
@@ -83,10 +84,13 @@ const AuthForms = () => {
     }
     
     try {
+      console.log("Attempting login with:", { email });
       const success = await login(email, password);
       
       if (success) {
-        navigate("/");
+        console.log("Login successful, waiting for auth state to update");
+        toast.success("Login successful!");
+        // The redirect will happen automatically in the useEffect when isAuthenticated changes
       } else {
         setLoginError("Invalid email or password");
       }
@@ -130,7 +134,9 @@ const AuthForms = () => {
     }
     
     try {
-      console.log("Registering with data:", { username, email, password, role });
+      console.log("Registering with data:", { username, email, role });
+      
+      // Register the user
       const success = await register({
         username,
         email,
@@ -139,8 +145,9 @@ const AuthForms = () => {
       });
       
       if (success) {
+        console.log("Registration successful, user should be logged in now");
         toast.success("Registration successful!");
-        // Don't navigate immediately - let auth state change trigger the redirect
+        // The redirect will happen in the useEffect when isAuthenticated changes
       } else {
         setRegisterError("Registration failed. Please try again.");
       }
@@ -149,6 +156,8 @@ const AuthForms = () => {
       if (error.message?.includes("Load failed")) {
         setConnectionError(true);
         toast.error("Cannot connect to authentication service. Please check your internet connection and try again.");
+      } else if (error.message?.includes("User already registered")) {
+        setRegisterError("This email is already registered. Please log in instead.");
       } else {
         setRegisterError(error.message || "An unexpected error occurred");
       }
