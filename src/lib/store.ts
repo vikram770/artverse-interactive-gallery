@@ -22,48 +22,75 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       login: async (email: string, password: string) => {
         try {
+          console.log("Login attempt for email:", email);
+          
           const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
           });
           
-          if (error) throw error;
-          
-          if (data.user) {
-            console.log("Login successful, user:", data.user.id);
-            
-            // Get the user profile
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', data.user.id)
-              .single();
-            
-            console.log("User profile:", profile);
-            
-            const currentUser: User = {
-              id: data.user.id,
-              email: data.user.email || '',
-              username: profile?.username || data.user.email?.split('@')[0] || '',
-              password: '', // We don't store passwords
-              role: (profile?.role as 'visitor' | 'artist' | 'admin') || 'visitor',
-              avatar: profile?.avatar || '',
-              bio: profile?.bio || '',
-              createdAt: data.user.created_at || new Date().toISOString(),
-              likedArtworks: []
-            };
-            
-            set({ currentUser, isAuthenticated: true });
-            console.log("Auth state updated: isAuthenticated=true");
-            return true;
+          if (error) {
+            console.error("Supabase login error:", error);
+            throw error;
           }
           
-          return false;
+          if (!data.user || !data.session) {
+            console.error("No user or session returned from login");
+            return false;
+          }
+          
+          console.log("Login successful, user:", data.user.id);
+          
+          // Get the user profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+          
+          if (profileError) {
+            console.error("Error fetching profile:", profileError);
+            // If profile doesn't exist, create it
+            if (profileError.code === 'PGRST116') {
+              console.log("Profile not found, creating new profile");
+              
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: data.user.id,
+                  username: data.user.email?.split('@')[0] || '',
+                  role: 'visitor',
+                  created_at: new Date().toISOString()
+                });
+              
+              if (insertError) {
+                console.error("Error creating profile:", insertError);
+              }
+            }
+          }
+          
+          console.log("User profile:", profile);
+          
+          // Get user's liked artworks
+          const likedArtworks = await get().getUserLikedArtworks(data.user.id);
+          
+          const currentUser: User = {
+            id: data.user.id,
+            email: data.user.email || '',
+            username: profile?.username || data.user.email?.split('@')[0] || '',
+            password: '', // We don't store passwords
+            role: (profile?.role as 'visitor' | 'artist' | 'admin') || 'visitor',
+            avatar: profile?.avatar || '',
+            bio: profile?.bio || '',
+            createdAt: data.user.created_at || new Date().toISOString(),
+            likedArtworks: likedArtworks
+          };
+          
+          set({ currentUser, isAuthenticated: true });
+          console.log("Auth state updated: isAuthenticated=true");
+          return true;
         } catch (error: any) {
           console.error('Login error:', error);
-          if (error.message === 'Load failed') {
-            throw new Error('Connection to authentication service failed. Please check your internet connection.');
-          }
           throw error;
         }
       },
@@ -90,56 +117,52 @@ export const useAuthStore = create<AuthState>()(
           
           console.log("User signup response:", data);
           
-          if (data.user) {
-            console.log("User created with ID:", data.user.id);
-            
-            // Create or update the profile record
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .upsert({
-                id: data.user.id,
-                username: userData.username,
-                role: userData.role || 'visitor',
-                created_at: new Date().toISOString()
-              });
-            
-            if (profileError) {
-              console.error('Profile creation error:', profileError);
-              // Don't throw here, we still created the auth user
-            } else {
-              console.log("Profile created successfully");
-            }
-            
-            // For immediate login if email confirmation is disabled
-            if (data.session) {
-              console.log("Session available, setting authenticated state");
-              
-              const currentUser: User = {
-                id: data.user.id,
-                email: data.user.email || '',
-                username: userData.username || data.user.email?.split('@')[0] || '',
-                password: '', // We don't store passwords
-                role: userData.role || 'visitor',
-                createdAt: data.user.created_at || new Date().toISOString(),
-                likedArtworks: []
-              };
-              
-              set({ currentUser, isAuthenticated: true });
-              console.log("Auth state updated after registration: isAuthenticated=true");
-            } else {
-              console.log("No session available after registration, user may need to confirm email");
-            }
-            
-            return true;
+          if (!data.user) {
+            console.error("No user returned from signup");
+            return false;
           }
           
-          console.error("Registration failed: No user data returned");
-          return false;
+          console.log("User created with ID:", data.user.id);
+          
+          // Create or update the profile record
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              username: userData.username,
+              role: userData.role || 'visitor',
+              created_at: new Date().toISOString()
+            });
+          
+          if (profileError) {
+            console.error('Profile creation error:', profileError);
+          } else {
+            console.log("Profile created successfully");
+          }
+          
+          // For immediate login if email confirmation is disabled
+          if (data.session) {
+            console.log("Session available, setting authenticated state");
+            
+            const currentUser: User = {
+              id: data.user.id,
+              email: data.user.email || '',
+              username: userData.username || data.user.email?.split('@')[0] || '',
+              password: '', // We don't store passwords
+              role: userData.role || 'visitor',
+              createdAt: data.user.created_at || new Date().toISOString(),
+              likedArtworks: []
+            };
+            
+            set({ currentUser, isAuthenticated: true });
+            console.log("Auth state updated after registration: isAuthenticated=true");
+          } else {
+            console.log("No session available after registration, user may need to confirm email");
+          }
+          
+          return true;
         } catch (error: any) {
           console.error('Registration error:', error);
-          if (error.message === 'Load failed') {
-            throw new Error('Connection to authentication service failed. Please check your internet connection.');
-          }
           throw error;
         }
       },
@@ -834,21 +857,33 @@ export const initializeAuth = async () => {
       console.log("Session found, user ID:", session.user.id);
       
       // Get the user profile
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .single();
       
+      if (profileError && profileError.code === 'PGRST116') {
+        console.log("Profile not found, creating new profile");
+        
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: session.user.id,
+            username: session.user.email?.split('@')[0] || '',
+            role: 'visitor',
+            created_at: new Date().toISOString()
+          });
+        
+        if (insertError) {
+          console.error("Error creating profile during initialization:", insertError);
+        }
+      }
+      
       console.log("User profile from initialization:", profile);
       
       // Get user's liked artworks
-      const { data: likes } = await supabase
-        .from('likes')
-        .select('artwork_id')
-        .eq('user_id', session.user.id);
-      
-      const likedArtworks = (likes || []).map(like => like.artwork_id);
+      const likedArtworks = await useGalleryStore.getState().getUserLikedArtworks(session.user.id);
       
       const currentUser: User = {
         id: session.user.id,

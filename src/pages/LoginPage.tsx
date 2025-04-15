@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthForms from "@/components/AuthForms";
 import { useAuthStore } from "@/lib/store";
+import { toast } from "sonner";
 
 const LoginPage = () => {
   const { isAuthenticated } = useAuthStore();
@@ -15,6 +16,7 @@ const LoginPage = () => {
     console.log("LoginPage: Authentication status:", isAuthenticated);
     if (isAuthenticated) {
       console.log("LoginPage: User is authenticated, redirecting to home page");
+      toast.success("Successfully logged in!");
       navigate("/");
     }
   }, [isAuthenticated, navigate]);

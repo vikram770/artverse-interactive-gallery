@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/store";
 import { AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const AuthForms = () => {
   const navigate = useNavigate();
@@ -64,7 +65,7 @@ const AuthForms = () => {
   // Redirect authenticated users
   useEffect(() => {
     if (isAuthenticated) {
-      console.log("User is authenticated, redirecting to home page");
+      console.log("AuthForms: User is authenticated, redirecting to home page");
       navigate("/");
     }
   }, [isAuthenticated, navigate]);
@@ -88,10 +89,11 @@ const AuthForms = () => {
       const success = await login(email, password);
       
       if (success) {
-        console.log("Login successful, waiting for auth state to update");
+        console.log("Login successful");
         toast.success("Login successful!");
-        // The redirect will happen automatically in the useEffect when isAuthenticated changes
+        // Navigate in the useEffect when isAuthenticated changes
       } else {
+        console.error("Login failed without throwing an error");
         setLoginError("Invalid email or password");
       }
     } catch (error: any) {
@@ -136,19 +138,60 @@ const AuthForms = () => {
     try {
       console.log("Registering with data:", { username, email, role });
       
-      // Register the user
-      const success = await register({
-        username,
+      // Register the user with improved error handling
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        role
+        options: {
+          data: {
+            username,
+            role
+          }
+        }
       });
       
-      if (success) {
-        console.log("Registration successful, user should be logged in now");
-        toast.success("Registration successful!");
-        // The redirect will happen in the useEffect when isAuthenticated changes
+      if (error) {
+        console.error("Registration error from Supabase:", error);
+        throw error;
+      }
+      
+      if (data.user) {
+        console.log("User created successfully:", data.user.id);
+        
+        // Manually create the profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            username,
+            role,
+            created_at: new Date().toISOString()
+          });
+        
+        if (profileError) {
+          console.error("Profile creation error:", profileError);
+          toast.error("User created but profile setup failed. You may need to update your profile later.");
+        } else {
+          console.log("Profile created successfully");
+        }
+        
+        // If we have a session, update auth store
+        if (data.session) {
+          const success = await login(email, password);
+          if (success) {
+            console.log("Auto-login after registration successful");
+            toast.success("Registration successful!");
+            navigate("/"); // Explicitly navigate here to ensure redirection
+          } else {
+            toast.success("Registration successful! Please log in now.");
+            setActiveTab("login");
+          }
+        } else {
+          toast.success("Registration successful! Please log in now.");
+          setActiveTab("login");
+        }
       } else {
+        console.error("Registration failed: No user data returned");
         setRegisterError("Registration failed. Please try again.");
       }
     } catch (error: any) {
