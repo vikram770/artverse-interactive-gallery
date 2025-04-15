@@ -91,7 +91,7 @@ const AuthForms = () => {
       if (success) {
         console.log("Login successful");
         toast.success("Login successful!");
-        // Navigate in the useEffect when isAuthenticated changes
+        navigate("/"); // Explicit navigation
       } else {
         console.error("Login failed without throwing an error");
         setLoginError("Invalid email or password");
@@ -101,6 +101,8 @@ const AuthForms = () => {
       if (error.message?.includes("Load failed")) {
         setConnectionError(true);
         toast.error("Cannot connect to authentication service. Please check your internet connection and try again.");
+      } else if (error.message?.includes("invalid_credentials") || error.code === "invalid_credentials") {
+        setLoginError("Invalid email or password");
       } else {
         setLoginError(error.message || "An unexpected error occurred");
       }
@@ -158,38 +160,60 @@ const AuthForms = () => {
       if (data.user) {
         console.log("User created successfully:", data.user.id);
         
-        // Manually create the profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            username,
-            role,
-            created_at: new Date().toISOString()
-          });
+        // Explicitly create the profile with retries
+        let profileCreated = false;
+        let attempts = 0;
         
-        if (profileError) {
-          console.error("Profile creation error:", profileError);
-          toast.error("User created but profile setup failed. You may need to update your profile later.");
-        } else {
-          console.log("Profile created successfully");
+        while (!profileCreated && attempts < 3) {
+          attempts++;
+          console.log(`Attempt ${attempts} to create profile for user ${data.user.id}`);
+          
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              username,
+              role,
+              created_at: new Date().toISOString()
+            });
+          
+          if (profileError) {
+            console.error(`Profile creation error (attempt ${attempts}):`, profileError);
+            // Wait a bit before retry
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            console.log("Profile created successfully");
+            profileCreated = true;
+          }
         }
         
         // If we have a session, update auth store
         if (data.session) {
-          const success = await login(email, password);
-          if (success) {
-            console.log("Auto-login after registration successful");
-            toast.success("Registration successful!");
-            navigate("/"); // Explicitly navigate here to ensure redirection
-          } else {
-            toast.success("Registration successful! Please log in now.");
-            setActiveTab("login");
+          console.log("Session available after registration, trying auto-login");
+          try {
+            const success = await login(email, password);
+            if (success) {
+              console.log("Auto-login after registration successful");
+              toast.success("Registration successful!");
+              navigate("/"); // Explicitly navigate here to ensure redirection
+              return;
+            }
+          } catch (loginErr) {
+            console.error("Auto-login after registration failed:", loginErr);
           }
-        } else {
-          toast.success("Registration successful! Please log in now.");
-          setActiveTab("login");
         }
+        
+        // If we reach here, either there was no session or auto-login failed
+        toast.success("Registration successful! Please log in now.");
+        setActiveTab("login");
+        // Clear the registration form
+        setRegisterData({
+          username: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+          role: "visitor"
+        });
       } else {
         console.error("Registration failed: No user data returned");
         setRegisterError("Registration failed. Please try again.");

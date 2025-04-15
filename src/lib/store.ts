@@ -1,3 +1,4 @@
+
 import { Artwork, User, Comment } from "@/types";
 import { createClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
@@ -13,6 +14,7 @@ interface AuthState {
   register: (userData: Partial<User>) => Promise<boolean>;
   logout: () => Promise<void>;
   updateUserProfile: (profileData: Partial<User>) => Promise<void>;
+  getUserLikedArtworks: (userId: string) => Promise<string[]>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -213,6 +215,21 @@ export const useAuthStore = create<AuthState>()(
         } catch (error: any) {
           console.error('Profile update error:', error);
           toast.error(error.message || "Error updating profile");
+        }
+      },
+      getUserLikedArtworks: async (userId: string) => {
+        try {
+          const { data, error } = await supabase
+            .from('likes')
+            .select('artwork_id')
+            .eq('user_id', userId);
+          
+          if (error) throw error;
+          
+          return (data || []).map(item => item.artwork_id);
+        } catch (error) {
+          console.error('Error fetching likes:', error);
+          return [];
         }
       }
     }),
@@ -883,7 +900,7 @@ export const initializeAuth = async () => {
       console.log("User profile from initialization:", profile);
       
       // Get user's liked artworks
-      const likedArtworks = await useGalleryStore.getState().getUserLikedArtworks(session.user.id);
+      const likedArtworks = await useAuthStore.getState().getUserLikedArtworks(session.user.id);
       
       const currentUser: User = {
         id: session.user.id,

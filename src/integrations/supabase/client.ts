@@ -21,11 +21,58 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
       'X-Client-Info': 'supabase-js-web/2.49.4'
     },
     fetch: (url, options) => {
-      console.log('Supabase fetch request:', url);
-      return fetch(url, options).catch(err => {
-        console.error('Supabase fetch error:', err);
-        throw err;
-      });
+      console.log('Supabase request:', url);
+      console.log('Request method:', options?.method || 'GET');
+      
+      // Set timeout for fetch requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const fetchOptions = {
+        ...options,
+        signal: controller.signal
+      };
+      
+      return fetch(url, fetchOptions)
+        .then(response => {
+          clearTimeout(timeoutId);
+          console.log('Supabase response status:', response.status);
+          return response;
+        })
+        .catch(err => {
+          clearTimeout(timeoutId);
+          console.error('Supabase fetch error:', err);
+          throw err;
+        });
     }
+  }
+});
+
+// Add a helper function to check connection
+export const checkSupabaseConnection = async () => {
+  try {
+    console.log('Testing Supabase connection...');
+    const startTime = Date.now();
+    // Try to fetch a simple table
+    const { error } = await supabase.from('profiles').select('id').limit(1);
+    const endTime = Date.now();
+    
+    if (error) {
+      console.error('Supabase connection test failed:', error);
+      return { success: false, error, latency: endTime - startTime };
+    }
+    
+    console.log('Supabase connection test successful, latency:', endTime - startTime, 'ms');
+    return { success: true, latency: endTime - startTime };
+  } catch (error) {
+    console.error('Supabase connection test error:', error);
+    return { success: false, error };
+  }
+};
+
+// Test connection on script load
+checkSupabaseConnection().then(result => {
+  if (!result.success) {
+    console.warn('Initial Supabase connection failed. Authentication features may not work.');
   }
 });
