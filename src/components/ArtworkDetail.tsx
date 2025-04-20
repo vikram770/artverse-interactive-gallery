@@ -17,12 +17,21 @@ import ArtworkZoom from "./artwork/ArtworkZoom";
 import ShareButtons from "./social/ShareButtons";
 import RelatedArtworks from "./artwork/RelatedArtworks";
 
+interface ArtistInfo {
+  username: string;
+  avatar?: string;
+}
+
+interface ArtworkWithArtist extends Artwork {
+  artist?: ArtistInfo;
+}
+
 const ArtworkDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
   
-  const [artwork, setArtwork] = useState<Artwork | null>(null);
+  const [artwork, setArtwork] = useState<ArtworkWithArtist | null>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -54,8 +63,8 @@ const ArtworkDetail = () => {
             
           if (viewError) console.error("Error updating view count:", viewError);
           
-          // Format artwork data
-          setArtwork({
+          // Format artwork data with proper typing
+          const formattedArtwork: ArtworkWithArtist = {
             id: artworkData.id,
             title: artworkData.title,
             description: artworkData.description || '',
@@ -71,11 +80,17 @@ const ArtworkDetail = () => {
             createdAt: artworkData.created_at,
             isForSale: artworkData.is_for_sale || false,
             price: artworkData.price?.toString() || '',
-            artist: artworkData.profiles ? {
+          };
+          
+          // Add artist info if available
+          if (artworkData.profiles) {
+            formattedArtwork.artist = {
               username: artworkData.profiles.username || 'Unknown Artist',
               avatar: artworkData.profiles.avatar
-            } : undefined
-          });
+            };
+          }
+          
+          setArtwork(formattedArtwork);
           
           // Fetch comments
           const { data: commentsData, error: commentsError } = await supabase
@@ -192,12 +207,12 @@ const ArtworkDetail = () => {
         </div>
         
         <div className="space-y-6">
-          <ArtworkHeader artwork={artwork} />
+          <ArtworkHeader artwork={artwork as any} />
           
-          <ArtworkContent artwork={artwork} />
+          <ArtworkContent artwork={artwork as any} />
           
           <div className="flex justify-between items-center">
-            <ArtworkActions artwork={artwork} />
+            <ArtworkActions artwork={artwork as any} />
             
             {currentUser?.id === artwork.artistId && (
               <Button variant="outline" onClick={() => navigate(`/edit/${artwork.id}`)}>
