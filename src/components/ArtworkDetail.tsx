@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGalleryStore, useAuthStore } from "@/lib/store";
@@ -10,6 +9,7 @@ import { Heart, Share2, Eye, MessageSquare, Edit, Trash2, Maximize2, Minimize2 }
 import CommentList from "./CommentList";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import PaymentButton from "./PaymentButton";
 
 const ArtworkDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -251,6 +251,13 @@ const ArtworkDetail = () => {
               </div>
             </div>
           </div>
+          
+          {artwork.isForSale && (
+            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+              <h3 className="text-xl font-semibold mb-4">Purchase Artwork</h3>
+              <PaymentButton artworkId={artwork.id} price={artwork.price} />
+            </div>
+          )}
           
           <Separator />
           
