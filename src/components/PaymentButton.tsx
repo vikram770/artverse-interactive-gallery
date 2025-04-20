@@ -8,7 +8,7 @@ import {
   CreditCard, 
   Globe, 
   Smartphone,
-  Bank,
+  Ban,  // Replace Bank with Ban
   ChevronDown
 } from "lucide-react";
 import {
@@ -59,7 +59,7 @@ const PaymentButton = ({ artworkId, price }: PaymentButtonProps) => {
           <span>Google Pay</span>
         </div>
         <div className="flex items-center">
-          <Bank className="w-4 h-4 mr-1" />
+          <Ban className="w-4 h-4 mr-1" />  {/* Changed from Bank to Ban */}
           <span>Net Banking</span>
         </div>
       </div>
@@ -97,7 +97,7 @@ const PaymentButton = ({ artworkId, price }: PaymentButtonProps) => {
             <span>Google Pay</span>
           </DropdownMenuItem>
           <DropdownMenuItem className="flex items-center" onClick={handlePayment}>
-            <Bank className="mr-2 h-4 w-4" />
+            <Ban className="mr-2 h-4 w-4" />  {/* Changed from Bank to Ban */}
             <span>Net Banking</span>
           </DropdownMenuItem>
           <DropdownMenuItem className="flex items-center" onClick={handlePayment}>
