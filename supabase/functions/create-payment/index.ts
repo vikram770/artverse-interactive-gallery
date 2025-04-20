@@ -38,9 +38,16 @@ serve(async (req) => {
       throw new Error('Artwork not found');
     }
 
-    // Create Stripe session
+    // Create Stripe session with expanded payment method options
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card', 'google_pay'],
+      payment_method_types: [
+        'card',
+        'google_pay',
+        'link',
+        'us_bank_account',
+        'cashapp',
+        'alipay'
+      ],
       line_items: [
         {
           price_data: {
@@ -57,6 +64,11 @@ serve(async (req) => {
       mode: 'payment',
       success_url: `${req.headers.get('origin')}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get('origin')}/artwork/${artworkId}`,
+      payment_method_options: {
+        card: {
+          setup_future_usage: 'off',
+        },
+      },
     });
 
     return new Response(
