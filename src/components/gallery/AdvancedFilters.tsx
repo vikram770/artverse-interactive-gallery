@@ -35,7 +35,7 @@ const AdvancedFilters = () => {
   
   // Local state for price range
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>(filters.tags || []);
   
   // Find max price in artworks
   const maxPrice = Math.max(...artworks.map(a => Number(a.price) || 0), 1000);
@@ -51,7 +51,7 @@ const AdvancedFilters = () => {
       : [...selectedTags, tag];
     
     setSelectedTags(newSelectedTags);
-    setFilters({ tags: newSelectedTags });
+    setFilters({ tags: newSelectedTags.length > 0 ? newSelectedTags : undefined });
   };
   
   return (

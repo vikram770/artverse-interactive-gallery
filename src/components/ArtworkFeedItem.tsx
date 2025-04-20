@@ -8,6 +8,8 @@ import ArtworkHeader from "./artwork/ArtworkHeader";
 import ArtworkActions from "./artwork/ArtworkActions";
 import ArtworkContent from "./artwork/ArtworkContent";
 import CommentSection from "./comments/CommentSection";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ArtworkFeedItemProps {
   artwork: Artwork;
@@ -15,34 +17,68 @@ interface ArtworkFeedItemProps {
 
 const ArtworkFeedItem = ({ artwork }: ArtworkFeedItemProps) => {
   const { currentUser } = useAuthStore();
-  const { toggleLike, getCommentsByArtworkId, addComment } = useGalleryStore();
+  const { likeArtwork } = useGalleryStore();
   
   const [comments, setComments] = useState<Comment[]>([]);
   const [artistName, setArtistName] = useState("Unknown Artist");
   const [loading, setLoading] = useState(false);
   
-  const isLiked = currentUser?.likedArtworks.includes(artwork.id) || false;
+  const isLiked = false; // This would need to be determined from user's liked artworks
   
   useEffect(() => {
     // Find the artist username
-    const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const artist = storedUsers.find((user: any) => user.id === artwork.artistId);
-    if (artist) {
-      setArtistName(artist.username);
-    }
+    const fetchArtistName = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', artwork.artistId)
+          .single();
+        
+        if (data && !error) {
+          setArtistName(data.username);
+        }
+      } catch (error) {
+        console.error("Error fetching artist name:", error);
+      }
+    };
+    
+    fetchArtistName();
   }, [artwork.artistId]);
   
   const handleLikeClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleLike(artwork.id);
+    likeArtwork(artwork.id);
   };
   
   const handleCommentClick = async () => {
     setLoading(true);
     try {
-      const artworkComments = await getCommentsByArtworkId(artwork.id);
-      setComments(artworkComments);
+      const { data, error } = await supabase
+        .from('comments')
+        .select(`
+          *,
+          profiles:user_id (username, avatar)
+        `)
+        .eq('artwork_id', artwork.id);
+        
+      if (error) throw error;
+      
+      // Format comments
+      const formattedComments = data.map(comment => ({
+        id: comment.id,
+        artworkId: comment.artwork_id,
+        userId: comment.user_id,
+        text: comment.text,
+        createdAt: comment.created_at,
+        user: comment.profiles ? {
+          username: comment.profiles.username || 'Anonymous',
+          avatar: comment.profiles.avatar
+        } : undefined
+      }));
+      
+      setComments(formattedComments);
     } catch (error) {
       console.error("Error fetching comments:", error);
     } finally {
@@ -51,17 +87,46 @@ const ArtworkFeedItem = ({ artwork }: ArtworkFeedItemProps) => {
   };
   
   const handleAddComment = async (text: string) => {
+    if (!currentUser) {
+      toast.error("You must be logged in to comment");
+      return;
+    }
+    
     try {
-      await addComment({
-        artworkId: artwork.id,
-        text: text
-      });
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          artwork_id: artwork.id,
+          user_id: currentUser.id,
+          text
+        })
+        .select(`
+          *,
+          profiles:user_id (username, avatar)
+        `)
+        .single();
+        
+      if (error) throw error;
       
-      // Refresh comments
-      const updatedComments = await getCommentsByArtworkId(artwork.id);
-      setComments(updatedComments);
+      if (data) {
+        const newComment = {
+          id: data.id,
+          artworkId: data.artwork_id,
+          userId: data.user_id,
+          text: data.text,
+          createdAt: data.created_at,
+          user: data.profiles ? {
+            username: data.profiles.username || 'Anonymous',
+            avatar: data.profiles.avatar
+          } : undefined
+        };
+        
+        setComments([newComment, ...comments]);
+        toast.success("Comment added");
+      }
     } catch (error) {
       console.error("Error adding comment:", error);
+      toast.error("Failed to add comment");
     }
   };
   

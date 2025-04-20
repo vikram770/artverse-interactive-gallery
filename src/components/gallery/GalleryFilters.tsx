@@ -10,8 +10,8 @@ import FilterBadge from "./FilterBadge";
 const GalleryFilters = () => {
   const { 
     artworks, 
-    activeFilters,
-    setFilter,
+    filters,
+    setFilters,
     clearFilters
   } = useGalleryStore();
   
@@ -31,26 +31,26 @@ const GalleryFilters = () => {
   }, [artworks]);
   
   const handleCategoryChange = (value: string) => {
-    setFilter("category", value);
+    setFilters({ category: value || undefined });
   };
 
   const handleYearChange = (value: number | null) => {
-    setFilter("year", value);
+    setFilters({ year: value || undefined });
   };
 
-  const hasActiveFilters = activeFilters.category || activeFilters.year;
+  const hasActiveFilters = filters.category || filters.year;
   
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <CategoryFilter 
-          selectedCategory={activeFilters.category} 
+          selectedCategory={filters.category || ""} 
           categories={categories} 
           onChange={handleCategoryChange} 
         />
         
         <YearFilter 
-          selectedYear={activeFilters.year?.toString() || null} 
+          selectedYear={filters.year?.toString() || null} 
           years={years} 
           onChange={handleYearChange} 
         />
@@ -65,18 +65,18 @@ const GalleryFilters = () => {
       {hasActiveFilters && (
         <div className="flex flex-wrap gap-2 mb-4">
           <span className="text-sm text-gray-500">Active filters:</span>
-          {activeFilters.category && (
+          {filters.category && (
             <FilterBadge
               label="Category"
-              value={activeFilters.category}
-              onRemove={() => setFilter("category", "")}
+              value={filters.category}
+              onRemove={() => setFilters({ category: undefined })}
             />
           )}
-          {activeFilters.year && (
+          {filters.year && (
             <FilterBadge
               label="Year"
-              value={activeFilters.year}
-              onRemove={() => setFilter("year", null)}
+              value={filters.year}
+              onRemove={() => setFilters({ year: undefined })}
             />
           )}
         </div>
