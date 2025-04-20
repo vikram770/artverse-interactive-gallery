@@ -1,168 +1,145 @@
-import { useState, useEffect } from "react";
+
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useGalleryStore, useAuthStore } from "@/lib/store";
-import { Badge } from "@/components/ui/badge";
+import { Artwork } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuthStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import { Heart, Share2, Eye, MessageSquare, Edit, Trash2, Maximize2, Minimize2 } from "lucide-react";
-import CommentList from "./CommentList";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { ArrowLeft, Edit } from "lucide-react";
 import PaymentButton from "./PaymentButton";
+import ArtworkActions from "./artwork/ArtworkActions";
+import ArtworkContent from "./artwork/ArtworkContent";
+import ArtworkHeader from "./artwork/ArtworkHeader";
+import CommentSection from "./comments/CommentSection";
+import { toast } from "sonner";
+import ArtworkZoom from "./artwork/ArtworkZoom";
+import ShareButtons from "./social/ShareButtons";
+import RelatedArtworks from "./artwork/RelatedArtworks";
 
 const ArtworkDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
-  const { 
-    getArtworkById, 
-    getCommentsByArtworkId, 
-    addComment, 
-    toggleLike,
-    deleteArtwork,
-    getUserLikedArtworks
-  } = useGalleryStore();
   
-  const [artwork, setArtwork] = useState<any>(undefined);
+  const [artwork, setArtwork] = useState<Artwork | null>(null);
   const [comments, setComments] = useState<any[]>([]);
-  const [newComment, setNewComment] = useState("");
-  const [isZoomed, setIsZoomed] = useState(false);
-  const [artistName, setArtistName] = useState("Unknown Artist");
-  const [isLiked, setIsLiked] = useState(false);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    const loadArtworkDetails = async () => {
+    const fetchArtwork = async () => {
       if (!id) return;
       
       try {
         setLoading(true);
         
-        const foundArtwork = await getArtworkById(id);
-        if (!foundArtwork) {
-          navigate("/not-found", { replace: true });
-          return;
-        }
-        
-        setArtwork(foundArtwork);
-        
-        // Get artist details
-        const { data: artistData } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', foundArtwork.artistId)
+        // Fetch artwork details
+        const { data: artworkData, error: artworkError } = await supabase
+          .from('artworks')
+          .select(`
+            *,
+            profiles:artist_id (username, avatar)
+          `)
+          .eq('id', id)
           .single();
+          
+        if (artworkError) throw artworkError;
         
-        if (artistData) {
-          setArtistName(artistData.username || "Unknown Artist");
-        }
-        
-        // Get comments
-        const artworkComments = await getCommentsByArtworkId(id);
-        setComments(artworkComments);
-        
-        // Check if user has liked this artwork
-        if (currentUser) {
-          const likedArtworks = await getUserLikedArtworks(currentUser.id);
-          setIsLiked(likedArtworks.includes(id));
+        if (artworkData) {
+          // Update view count
+          const { error: viewError } = await supabase
+            .from('artworks')
+            .update({ views: (artworkData.views || 0) + 1 })
+            .eq('id', id);
+            
+          if (viewError) console.error("Error updating view count:", viewError);
+          
+          // Format artwork data
+          setArtwork({
+            id: artworkData.id,
+            title: artworkData.title,
+            description: artworkData.description || '',
+            imageUrl: artworkData.image_url,
+            artistId: artworkData.artist_id,
+            category: artworkData.category || 'Other',
+            medium: artworkData.medium || '',
+            dimensions: artworkData.dimensions || '',
+            year: artworkData.year || new Date().getFullYear(),
+            likes: artworkData.likes || 0,
+            views: (artworkData.views || 0) + 1, // Increment locally
+            tags: artworkData.tags || [],
+            createdAt: artworkData.created_at,
+            isForSale: artworkData.is_for_sale || false,
+            price: artworkData.price?.toString() || '',
+            artist: artworkData.profiles ? {
+              username: artworkData.profiles.username || 'Unknown Artist',
+              avatar: artworkData.profiles.avatar
+            } : undefined
+          });
+          
+          // Fetch comments
+          const { data: commentsData, error: commentsError } = await supabase
+            .from('comments')
+            .select(`
+              *,
+              profiles:user_id (username, avatar)
+            `)
+            .eq('artwork_id', id)
+            .order('created_at', { ascending: false });
+            
+          if (commentsError) throw commentsError;
+          
+          setComments(commentsData || []);
         }
       } catch (error) {
-        console.error("Error loading artwork details:", error);
-        toast.error("Failed to load artwork details");
+        console.error("Error fetching artwork:", error);
+        toast.error("Failed to load artwork");
       } finally {
         setLoading(false);
       }
     };
     
-    loadArtworkDetails();
-  }, [id, getArtworkById, getCommentsByArtworkId, navigate, currentUser, getUserLikedArtworks]);
+    fetchArtwork();
+  }, [id]);
   
-  const isOwner = currentUser?.id === artwork?.artistId;
-  const isAdmin = currentUser?.role === 'admin';
-  const canEdit = isOwner || isAdmin;
-  
-  const handleSubmitComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!id || !newComment.trim()) return;
+  const handleAddComment = async (text: string) => {
+    if (!currentUser || !artwork) return;
     
     try {
-      await addComment({
-        artworkId: id,
-        text: newComment
-      });
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          artwork_id: artwork.id,
+          user_id: currentUser.id,
+          text
+        })
+        .select(`
+          *,
+          profiles:user_id (username, avatar)
+        `)
+        .single();
+        
+      if (error) throw error;
       
-      setNewComment("");
-      
-      // Refresh comments
-      const updatedComments = await getCommentsByArtworkId(id);
-      setComments(updatedComments);
-    } catch (error) {
-      console.error("Error submitting comment:", error);
-      toast.error("Failed to submit comment");
-    }
-  };
-  
-  const handleLike = async () => {
-    if (!id) return;
-    
-    try {
-      await toggleLike(id);
-      
-      // Update artwork to get the new like count
-      const updatedArtwork = await getArtworkById(id);
-      if (updatedArtwork) {
-        setArtwork(updatedArtwork);
-      }
-      
-      // Check if user has liked this artwork
-      if (currentUser) {
-        const likedArtworks = await getUserLikedArtworks(currentUser.id);
-        setIsLiked(likedArtworks.includes(id));
+      if (data) {
+        setComments([data, ...comments]);
+        toast.success("Comment added");
       }
     } catch (error) {
-      console.error("Error liking artwork:", error);
-      toast.error("Failed to like artwork");
+      console.error("Error adding comment:", error);
+      toast.error("Failed to add comment");
     }
-  };
-  
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: artwork?.title,
-        text: artwork?.description,
-        url: window.location.href,
-      }).catch(error => console.log('Error sharing', error));
-    } else {
-      // Fallback for browsers that don't support the Web Share API
-      navigator.clipboard.writeText(window.location.href);
-      toast.success("Link copied to clipboard!");
-    }
-  };
-  
-  const handleDelete = async () => {
-    if (!id) return;
-    
-    if (window.confirm("Are you sure you want to delete this artwork? This action cannot be undone.")) {
-      try {
-        await deleteArtwork(id);
-        navigate("/", { replace: true });
-      } catch (error) {
-        console.error("Error deleting artwork:", error);
-        toast.error("Failed to delete artwork");
-      }
-    }
-  };
-  
-  const toggleZoom = () => {
-    setIsZoomed(!isZoomed);
   };
   
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <p>Loading artwork...</p>
+      <div className="container mx-auto px-4 py-12">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-6"></div>
+          <div className="h-96 bg-gray-200 rounded mb-6"></div>
+          <div className="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+        </div>
       </div>
     );
   }
@@ -170,122 +147,99 @@ const ArtworkDetail = () => {
   if (!artwork) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
-        <p>Artwork not found</p>
+        <h2 className="text-2xl font-bold mb-4">Artwork not found</h2>
+        <p className="mb-6">The artwork you're looking for doesn't exist or has been removed.</p>
+        <Button onClick={() => navigate('/')}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Gallery
+        </Button>
       </div>
     );
   }
   
+  const formattedComments = comments.map(comment => ({
+    id: comment.id,
+    artworkId: comment.artwork_id,
+    userId: comment.user_id,
+    text: comment.text,
+    createdAt: comment.created_at,
+    user: comment.profiles ? {
+      username: comment.profiles.username || 'Anonymous',
+      avatar: comment.profiles.avatar
+    } : undefined
+  }));
+  
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className={`lg:col-span-2 ${isZoomed ? 'fixed inset-0 z-50 bg-black flex items-center justify-center p-4' : ''}`}>
-          <div className={`relative ${isZoomed ? 'max-h-full max-w-full' : 'aspect-[4/3] rounded-lg overflow-hidden bg-gray-100'}`}>
+    <div className="container mx-auto px-4 py-6 md:py-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <div className="relative rounded-lg overflow-hidden border bg-white shadow-sm">
+          <div className="aspect-square">
             <img 
               src={artwork.imageUrl} 
-              alt={artwork.title} 
-              className={`w-full h-full ${isZoomed ? 'object-contain' : 'object-cover'}`}
+              alt={artwork.title}
+              className="w-full h-full object-cover"
             />
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="absolute top-4 right-4 bg-white/80 hover:bg-white"
-              onClick={toggleZoom}
-            >
-              {isZoomed ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
-            </Button>
+          </div>
+          
+          <div className="absolute top-4 right-4 flex gap-2">
+            <ArtworkZoom imageUrl={artwork.imageUrl} title={artwork.title} />
+            <ShareButtons 
+              artworkId={artwork.id} 
+              title={artwork.title} 
+              imageUrl={artwork.imageUrl} 
+            />
           </div>
         </div>
         
         <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold font-display mb-2">{artwork.title}</h1>
-            <p className="text-lg text-gray-600 mb-4">{artwork.year}</p>
+          <ArtworkHeader artwork={artwork} />
+          
+          <ArtworkContent artwork={artwork} />
+          
+          <div className="flex justify-between items-center">
+            <ArtworkActions artwork={artwork} />
             
-            <div className="flex flex-wrap gap-2 mb-4">
-              <Badge variant="outline">{artwork.category}</Badge>
-              <Badge variant="outline">{artwork.medium}</Badge>
-              {artwork.dimensions && <Badge variant="outline">{artwork.dimensions}</Badge>}
-            </div>
-            
-            <p className="text-gray-700 mb-6">{artwork.description}</p>
-            
-            <div className="flex flex-wrap gap-2 mb-6">
-              {artwork.tags.map((tag: string) => (
-                <Badge key={tag} variant="secondary">#{tag}</Badge>
-              ))}
-            </div>
-            
-            <div className="flex items-center space-x-4 mb-6">
-              <Button 
-                variant={isLiked ? "default" : "outline"} 
-                className={isLiked ? "bg-red-500 hover:bg-red-600" : ""}
-                onClick={handleLike}
-              >
-                <Heart className={`mr-2 h-4 w-4 ${isLiked ? "fill-white" : ""}`} /> 
-                {artwork.likes} {artwork.likes === 1 ? "Like" : "Likes"}
+            {currentUser?.id === artwork.artistId && (
+              <Button variant="outline" onClick={() => navigate(`/edit/${artwork.id}`)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Artwork
               </Button>
-              
-              <Button variant="outline" onClick={handleShare}>
-                <Share2 className="mr-2 h-4 w-4" /> Share
-              </Button>
-              
-              {canEdit && (
-                <>
-                  <Button variant="outline" onClick={() => navigate(`/edit/${artwork.id}`)}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit
-                  </Button>
-                  
-                  <Button variant="destructive" onClick={handleDelete}>
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                  </Button>
-                </>
-              )}
-            </div>
-            
-            <div className="flex items-center text-gray-500 space-x-6">
-              <div className="flex items-center">
-                <Eye className="mr-2 h-4 w-4" /> {artwork.views} views
-              </div>
-              <div className="flex items-center">
-                <MessageSquare className="mr-2 h-4 w-4" /> {comments.length} comments
-              </div>
-            </div>
+            )}
           </div>
           
           {artwork.isForSale && (
-            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-              <h3 className="text-xl font-semibold mb-4">Purchase Artwork</h3>
-              <PaymentButton artworkId={artwork.id} price={artwork.price} />
+            <div className="mt-6 p-6 border rounded-lg bg-gray-50">
+              <h3 className="text-xl font-bold mb-4">Purchase this artwork</h3>
+              <p className="mb-6 text-gray-600">
+                This original artwork is available for purchase. Secure checkout with various payment options.
+              </p>
+              <PaymentButton artworkId={artwork.id} price={parseFloat(artwork.price || "0")} />
             </div>
           )}
-          
-          <Separator />
-          
-          <div>
-            <h2 className="text-xl font-semibold font-display mb-4">Comments</h2>
-            
-            {currentUser ? (
-              <form onSubmit={handleSubmitComment} className="mb-6">
-                <Textarea
-                  placeholder="Leave a comment..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  className="mb-2"
-                  rows={3}
-                />
-                <Button type="submit" disabled={!newComment.trim()}>
-                  Post Comment
-                </Button>
-              </form>
-            ) : (
-              <p className="mb-6 text-gray-500">
-                Please <a href="/login" className="text-blue-500 hover:underline">sign in</a> to leave a comment.
-              </p>
-            )}
-            
-            <CommentList comments={comments} />
-          </div>
         </div>
+      </div>
+      
+      <Separator className="my-8" />
+      
+      <div className="mb-8">
+        <h3 className="text-xl font-semibold mb-4">Comments</h3>
+        <div className="bg-white border rounded-lg overflow-hidden">
+          <CommentSection
+            artworkId={artwork.id}
+            currentUser={currentUser}
+            comments={formattedComments}
+            onAddComment={handleAddComment}
+          />
+        </div>
+      </div>
+      
+      <RelatedArtworks currentArtwork={artwork} />
+      
+      <div className="mt-8">
+        <Button variant="outline" onClick={() => navigate('/')}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Gallery
+        </Button>
       </div>
     </div>
   );
