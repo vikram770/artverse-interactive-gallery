@@ -15,9 +15,10 @@ interface AuthState {
   register: (userData: Omit<User, 'id' | 'createdAt' | 'likedArtworks'>) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUserProfile: (profileData: { username?: string; bio?: string; avatar?: string }) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: null,
   isAuthenticated: false,
   isLoading: false,
@@ -51,7 +52,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             username: userData.username,
             email: userData.email,
             password: userData.password,
-            role: userData.role,
+            role: userData.role as 'visitor' | 'artist' | 'admin', // Cast to the correct type
             createdAt: new Date().toISOString(),
             likedArtworks: [],
           },
@@ -88,12 +89,14 @@ export const useAuthStore = create<AuthState>((set) => ({
           throw new Error(profileError.message);
         }
 
+        const userRole = profileData?.role as 'visitor' | 'artist' | 'admin' || 'visitor'; // Cast to the correct type
+
         const user: User = {
           id: data.user.id,
           username: profileData?.username || data.user.email?.split('@')[0] || 'Unknown',
           email: data.user.email || email,
           password: password,
-          role: profileData?.role || 'visitor',
+          role: userRole,
           createdAt: new Date().toISOString(),
           likedArtworks: [],
           avatar: profileData?.avatar || null,
@@ -125,6 +128,47 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: false });
     }
   },
+  updateUserProfile: async (profileData) => {
+    const { currentUser } = get();
+    if (!currentUser) {
+      toast.error("You must be logged in to update your profile");
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: currentUser.id,
+          username: profileData.username || currentUser.username,
+          bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio,
+          avatar: profileData.avatar !== undefined ? profileData.avatar : currentUser.avatar,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local user state
+      set({
+        currentUser: {
+          ...currentUser,
+          username: profileData.username || currentUser.username,
+          bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio,
+          avatar: profileData.avatar !== undefined ? profileData.avatar : currentUser.avatar,
+        }
+      });
+
+      toast.success("Profile updated successfully");
+    } catch (error: any) {
+      set({ error: error.message });
+      toast.error(`Profile update error: ${error.message}`);
+    } finally {
+      set({ isLoading: false });
+    }
+  }
 }));
 
 export const initializeAuth = async () => {
@@ -177,8 +221,12 @@ interface GalleryState {
   setFilters: (newFilters: Partial<GalleryFilters>) => void;
   clearFilters: () => void;
   likeArtwork: (artworkId: string) => Promise<void>;
+  toggleLike: (artworkId: string) => Promise<void>;
+  getArtworkById: (artworkId: string) => Promise<Artwork | null>;
   getArtworksByArtist: (artistId: string) => Promise<Artwork[]>;
   getUserLikedArtworks: (userId: string) => Promise<string[]>;
+  addArtwork: (artworkData: any) => Promise<void>;
+  updateArtwork: (artworkId: string, artworkData: any) => Promise<void>;
 }
 
 export const useGalleryStore = create<GalleryState>((set, get) => ({
@@ -300,6 +348,107 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     }
   },
   
+  toggleLike: async (artworkId: string) => {
+    try {
+      const userId = useAuthStore.getState().currentUser?.id;
+      if (!userId) {
+        toast.error("You must be logged in to like artworks");
+        return;
+      }
+      
+      // Check if user has already liked this artwork
+      const { data } = await supabase
+        .from('likes')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('artwork_id', artworkId)
+        .single();
+      
+      if (data) {
+        // User already liked this artwork, so unlike it
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('id', data.id);
+          
+        if (error) throw error;
+        
+        // Update artwork count
+        set((state) => ({
+          artworks: state.artworks.map((artwork) =>
+            artwork.id === artworkId ? { ...artwork, likes: Math.max(0, (artwork.likes || 0) - 1) } : artwork
+          ),
+          filteredArtworks: state.filteredArtworks.map((artwork) =>
+            artwork.id === artworkId ? { ...artwork, likes: Math.max(0, (artwork.likes || 0) - 1) } : artwork
+          ),
+        }));
+        
+        toast.success("Artwork unliked");
+      } else {
+        // User hasn't liked this artwork yet, so like it
+        const { error } = await supabase
+          .from('likes')
+          .insert([{ user_id: userId, artwork_id: artworkId }]);
+          
+        if (error) throw error;
+        
+        // Update artwork count
+        set((state) => ({
+          artworks: state.artworks.map((artwork) =>
+            artwork.id === artworkId ? { ...artwork, likes: (artwork.likes || 0) + 1 } : artwork
+          ),
+          filteredArtworks: state.filteredArtworks.map((artwork) =>
+            artwork.id === artworkId ? { ...artwork, likes: (artwork.likes || 0) + 1 } : artwork
+          ),
+        }));
+        
+        toast.success("Artwork liked!");
+      }
+    } catch (error: any) {
+      console.error("Error toggling like:", error);
+      toast.error(`Failed to update like: ${error.message}`);
+    }
+  },
+  
+  getArtworkById: async (artworkId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('artworks')
+        .select('*')
+        .eq('id', artworkId)
+        .single();
+        
+      if (error) throw error;
+      
+      if (data) {
+        const artwork: Artwork = {
+          id: data.id,
+          title: data.title,
+          description: data.description || '',
+          imageUrl: data.image_url,
+          artistId: data.artist_id,
+          category: data.category || 'Other',
+          medium: data.medium || '',
+          dimensions: data.dimensions || '',
+          year: data.year || new Date().getFullYear(),
+          likes: data.likes || 0,
+          views: data.views || 0,
+          tags: data.tags || [],
+          createdAt: data.created_at,
+          isForSale: data.is_for_sale || false,
+          price: data.price?.toString() || '',
+        };
+        
+        return artwork;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error fetching artwork by ID:", error);
+      return null;
+    }
+  },
+  
   getArtworksByArtist: async (artistId: string) => {
     try {
       const { data, error } = await supabase
@@ -358,6 +507,165 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       console.error("Error fetching liked artworks:", error);
       toast.error(`Failed to fetch liked artworks: ${error.message}`);
       return [];
+    }
+  },
+  
+  addArtwork: async (artworkData: any) => {
+    const { currentUser } = useAuthStore.getState();
+    if (!currentUser) {
+      toast.error("You must be logged in to add artwork");
+      return;
+    }
+    
+    set({ isLoading: true, error: null });
+    
+    try {
+      // Prepare the data for Supabase
+      const artworkRecord = {
+        title: artworkData.title,
+        description: artworkData.description,
+        image_url: artworkData.imageUrl,
+        artist_id: currentUser.id,
+        category: artworkData.category || 'Other',
+        medium: artworkData.medium || '',
+        dimensions: artworkData.dimensions || '',
+        year: artworkData.year || new Date().getFullYear(),
+        tags: artworkData.tags || [],
+        is_for_sale: artworkData.isForSale || false,
+        price: artworkData.isForSale ? parseFloat(artworkData.price) : null,
+      };
+      
+      const { data, error } = await supabase
+        .from('artworks')
+        .insert(artworkRecord)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      if (data) {
+        // Format the new artwork data
+        const newArtwork: Artwork = {
+          id: data.id,
+          title: data.title,
+          description: data.description || '',
+          imageUrl: data.image_url,
+          artistId: data.artist_id,
+          category: data.category || 'Other',
+          medium: data.medium || '',
+          dimensions: data.dimensions || '',
+          year: data.year || new Date().getFullYear(),
+          likes: 0,
+          views: 0,
+          tags: data.tags || [],
+          createdAt: data.created_at,
+          isForSale: data.is_for_sale || false,
+          price: data.price?.toString() || '',
+        };
+        
+        // Update the store with the new artwork
+        set(state => ({
+          artworks: [newArtwork, ...state.artworks],
+          filteredArtworks: [newArtwork, ...state.filteredArtworks],
+        }));
+        
+        toast.success("Artwork added successfully");
+      }
+    } catch (error: any) {
+      console.error("Error adding artwork:", error);
+      set({ error: error.message });
+      toast.error(`Failed to add artwork: ${error.message}`);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  
+  updateArtwork: async (artworkId: string, artworkData: any) => {
+    const { currentUser } = useAuthStore.getState();
+    if (!currentUser) {
+      toast.error("You must be logged in to update artwork");
+      return;
+    }
+    
+    set({ isLoading: true, error: null });
+    
+    try {
+      // Get the existing artwork first
+      const { data: existingArtwork, error: fetchError } = await supabase
+        .from('artworks')
+        .select('*')
+        .eq('id', artworkId)
+        .single();
+        
+      if (fetchError) throw fetchError;
+      
+      // Verify ownership
+      if (existingArtwork.artist_id !== currentUser.id && currentUser.role !== 'admin') {
+        throw new Error("You don't have permission to edit this artwork");
+      }
+      
+      // Prepare the data for Supabase
+      const artworkRecord = {
+        title: artworkData.title,
+        description: artworkData.description,
+        image_url: artworkData.imageUrl,
+        category: artworkData.category || 'Other',
+        medium: artworkData.medium || '',
+        dimensions: artworkData.dimensions || '',
+        year: artworkData.year || new Date().getFullYear(),
+        tags: artworkData.tags || [],
+        is_for_sale: artworkData.isForSale || false,
+        price: artworkData.isForSale ? parseFloat(artworkData.price) : null,
+        updated_at: new Date().toISOString(),
+      };
+      
+      const { data, error } = await supabase
+        .from('artworks')
+        .update(artworkRecord)
+        .eq('id', artworkId)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      if (data) {
+        // Format the updated artwork data
+        const updatedArtwork: Artwork = {
+          id: data.id,
+          title: data.title,
+          description: data.description || '',
+          imageUrl: data.image_url,
+          artistId: data.artist_id,
+          category: data.category || 'Other',
+          medium: data.medium || '',
+          dimensions: data.dimensions || '',
+          year: data.year || new Date().getFullYear(),
+          likes: data.likes || 0,
+          views: data.views || 0,
+          tags: data.tags || [],
+          createdAt: data.created_at,
+          isForSale: data.is_for_sale || false,
+          price: data.price?.toString() || '',
+        };
+        
+        // Update the store with the updated artwork
+        set(state => ({
+          artworks: state.artworks.map(artwork => 
+            artwork.id === artworkId ? updatedArtwork : artwork
+          ),
+          filteredArtworks: state.filteredArtworks.map(artwork => 
+            artwork.id === artworkId ? updatedArtwork : artwork
+          ),
+        }));
+        
+        toast.success("Artwork updated successfully");
+      }
+    } catch (error: any) {
+      console.error("Error updating artwork:", error);
+      set({ error: error.message });
+      toast.error(`Failed to update artwork: ${error.message}`);
+    } finally {
+      set({ isLoading: false });
     }
   }
 }));

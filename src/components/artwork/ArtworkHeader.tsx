@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ArtworkHeaderProps {
   artistId: string;
@@ -14,16 +15,27 @@ const ArtworkHeader = ({ artistId, createdAt }: ArtworkHeaderProps) => {
   const [avatar, setAvatar] = useState<string | undefined>(undefined);
   
   useEffect(() => {
-    // Get user info
-    const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const artist = storedUsers.find((user: any) => user.id === artistId);
+    const fetchArtistInfo = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username, avatar')
+          .eq('id', artistId)
+          .single();
+        
+        if (error) throw error;
+        
+        if (data) {
+          setArtistName(data.username || "Unknown Artist");
+          setAvatar(data.avatar);
+        }
+      } catch (error) {
+        console.error("Error fetching artist info:", error);
+        setArtistName("Unknown Artist");
+      }
+    };
     
-    if (artist) {
-      setArtistName(artist.username);
-      setAvatar(artist.avatar);
-    } else {
-      setArtistName("Unknown Artist");
-    }
+    fetchArtistInfo();
   }, [artistId]);
   
   const getTimeAgo = () => {

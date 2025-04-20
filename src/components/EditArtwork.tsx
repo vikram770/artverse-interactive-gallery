@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGalleryStore } from "@/lib/store";
 import UploadArtwork from "./UploadArtwork";
 import { Artwork } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
 
 const EditArtwork = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,7 +18,39 @@ const EditArtwork = () => {
       const fetchArtwork = async () => {
         try {
           setLoading(true);
-          const foundArtwork = await getArtworkById(id);
+          // Try to use the store function first
+          let foundArtwork = await getArtworkById(id);
+          
+          // If not found, try direct fetch as fallback
+          if (!foundArtwork) {
+            const { data, error } = await supabase
+              .from('artworks')
+              .select('*')
+              .eq('id', id)
+              .single();
+              
+            if (error) throw error;
+            
+            if (data) {
+              foundArtwork = {
+                id: data.id,
+                title: data.title,
+                description: data.description || '',
+                imageUrl: data.image_url,
+                artistId: data.artist_id,
+                category: data.category || 'Other',
+                medium: data.medium || '',
+                dimensions: data.dimensions || '',
+                year: data.year || new Date().getFullYear(),
+                likes: data.likes || 0,
+                views: data.views || 0,
+                tags: data.tags || [],
+                createdAt: data.created_at,
+                isForSale: data.is_for_sale || false,
+                price: data.price?.toString() || '',
+              };
+            }
+          }
           
           if (foundArtwork) {
             setArtwork(foundArtwork);

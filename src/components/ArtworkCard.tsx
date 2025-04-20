@@ -14,7 +14,7 @@ interface ArtworkCardProps {
 
 const ArtworkCard = ({ artwork }: ArtworkCardProps) => {
   const { currentUser } = useAuthStore();
-  const { toggleLike, getUserLikedArtworks } = useGalleryStore();
+  const { getUserLikedArtworks, toggleLike } = useGalleryStore();
   
   const [isLiked, setIsLiked] = useState(false);
   const [artistName, setArtistName] = useState("Unknown Artist");

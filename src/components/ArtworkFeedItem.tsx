@@ -17,13 +17,12 @@ interface ArtworkFeedItemProps {
 
 const ArtworkFeedItem = ({ artwork }: ArtworkFeedItemProps) => {
   const { currentUser } = useAuthStore();
-  const { likeArtwork } = useGalleryStore();
+  const { toggleLike, getUserLikedArtworks } = useGalleryStore();
   
   const [comments, setComments] = useState<Comment[]>([]);
   const [artistName, setArtistName] = useState("Unknown Artist");
   const [loading, setLoading] = useState(false);
-  
-  const isLiked = false; // This would need to be determined from user's liked artworks
+  const [isLiked, setIsLiked] = useState(false);
   
   useEffect(() => {
     // Find the artist username
@@ -43,39 +42,57 @@ const ArtworkFeedItem = ({ artwork }: ArtworkFeedItemProps) => {
       }
     };
     
+    // Check like status
+    const checkLikeStatus = async () => {
+      if (currentUser) {
+        const likedArtworks = await getUserLikedArtworks(currentUser.id);
+        setIsLiked(likedArtworks.includes(artwork.id));
+      }
+    };
+    
     fetchArtistName();
-  }, [artwork.artistId]);
+    checkLikeStatus();
+  }, [artwork.artistId, artwork.id, currentUser, getUserLikedArtworks]);
   
   const handleLikeClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    likeArtwork(artwork.id);
+    toggleLike(artwork.id);
+    // Toggle local state for immediate UI feedback
+    setIsLiked(!isLiked);
   };
   
   const handleCommentClick = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch comments
+      const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
-        .select(`
-          *,
-          profiles:user_id (username, avatar)
-        `)
-        .eq('artwork_id', artwork.id);
+        .select('*')
+        .eq('artwork_id', artwork.id)
+        .order('created_at', { ascending: false });
         
-      if (error) throw error;
+      if (commentsError) throw commentsError;
       
-      // Format comments
-      const formattedComments = data.map(comment => ({
-        id: comment.id,
-        artworkId: comment.artwork_id,
-        userId: comment.user_id,
-        text: comment.text,
-        createdAt: comment.created_at,
-        user: comment.profiles ? {
-          username: comment.profiles.username || 'Anonymous',
-          avatar: comment.profiles.avatar
-        } : undefined
+      // Fetch user data for each comment
+      const formattedComments = await Promise.all((commentsData || []).map(async (comment) => {
+        const { data: userData, error: userError } = await supabase
+          .from('profiles')
+          .select('username, avatar')
+          .eq('id', comment.user_id)
+          .single();
+          
+        return {
+          id: comment.id,
+          artworkId: comment.artwork_id,
+          userId: comment.user_id,
+          text: comment.text,
+          createdAt: comment.created_at,
+          user: !userError && userData ? {
+            username: userData.username || 'Anonymous',
+            avatar: userData.avatar
+          } : undefined
+        };
       }));
       
       setComments(formattedComments);
@@ -100,24 +117,28 @@ const ArtworkFeedItem = ({ artwork }: ArtworkFeedItemProps) => {
           user_id: currentUser.id,
           text
         })
-        .select(`
-          *,
-          profiles:user_id (username, avatar)
-        `)
+        .select()
         .single();
         
       if (error) throw error;
       
       if (data) {
+        // Fetch user profile for the comment
+        const { data: userData, error: userError } = await supabase
+          .from('profiles')
+          .select('username, avatar')
+          .eq('id', currentUser.id)
+          .single();
+          
         const newComment = {
           id: data.id,
           artworkId: data.artwork_id,
           userId: data.user_id,
           text: data.text,
           createdAt: data.created_at,
-          user: data.profiles ? {
-            username: data.profiles.username || 'Anonymous',
-            avatar: data.profiles.avatar
+          user: !userError && userData ? {
+            username: userData.username || 'Anonymous',
+            avatar: userData.avatar
           } : undefined
         };
         

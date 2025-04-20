@@ -70,11 +70,62 @@ const UploadArtwork = ({ artworkToEdit }: UploadArtworkProps) => {
     
     try {
       if (isEditMode && artworkToEdit) {
-        await updateArtwork(artworkToEdit.id, artwork);
+        // Direct method
+        if (typeof updateArtwork === 'function') {
+          await updateArtwork(artworkToEdit.id, artwork);
+        } else {
+          // Fallback for direct Supabase update
+          const artworkRecord = {
+            title: artwork.title,
+            description: artwork.description,
+            image_url: artwork.imageUrl,
+            category: artwork.category || 'Other',
+            medium: artwork.medium || '',
+            dimensions: artwork.dimensions || '',
+            year: artwork.year || new Date().getFullYear(),
+            tags: artwork.tags || [],
+            is_for_sale: artwork.isForSale || false,
+            price: artwork.isForSale ? parseFloat(artwork.price) : null,
+            updated_at: new Date().toISOString(),
+          };
+          
+          const { error } = await supabase
+            .from('artworks')
+            .update(artworkRecord)
+            .eq('id', artworkToEdit.id);
+            
+          if (error) throw error;
+        }
+        
         toast.success("Artwork updated successfully");
         navigate(`/artwork/${artworkToEdit.id}`);
       } else {
-        await addArtwork(artwork);
+        // Direct method
+        if (typeof addArtwork === 'function') {
+          await addArtwork(artwork);
+        } else {
+          // Fallback for direct Supabase insert
+          const artworkRecord = {
+            title: artwork.title,
+            description: artwork.description,
+            image_url: artwork.imageUrl,
+            artist_id: currentUser.id,
+            category: artwork.category || 'Other',
+            medium: artwork.medium || '',
+            dimensions: artwork.dimensions || '',
+            year: artwork.year || new Date().getFullYear(),
+            tags: artwork.tags || [],
+            is_for_sale: artwork.isForSale || false,
+            price: artwork.isForSale ? parseFloat(artwork.price) : null,
+          };
+          
+          const { error } = await supabase
+            .from('artworks')
+            .insert(artworkRecord);
+            
+          if (error) throw error;
+        }
+        
         toast.success("Artwork uploaded successfully");
         navigate("/profile");
       }

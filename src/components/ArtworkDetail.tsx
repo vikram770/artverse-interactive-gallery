@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Artwork } from "@/types";
@@ -45,16 +44,24 @@ const ArtworkDetail = () => {
         // Fetch artwork details
         const { data: artworkData, error: artworkError } = await supabase
           .from('artworks')
-          .select(`
-            *,
-            profiles:artist_id (username, avatar)
-          `)
+          .select('*')
           .eq('id', id)
           .single();
           
         if (artworkError) throw artworkError;
         
         if (artworkData) {
+          // Fetch artist info separately
+          const { data: artistData, error: artistError } = await supabase
+            .from('profiles')
+            .select('username, avatar')
+            .eq('id', artworkData.artist_id)
+            .single();
+            
+          if (artistError) {
+            console.error("Error fetching artist data:", artistError);
+          }
+          
           // Update view count
           const { error: viewError } = await supabase
             .from('artworks')
@@ -83,10 +90,10 @@ const ArtworkDetail = () => {
           };
           
           // Add artist info if available
-          if (artworkData.profiles) {
+          if (artistData) {
             formattedArtwork.artist = {
-              username: artworkData.profiles.username || 'Unknown Artist',
-              avatar: artworkData.profiles.avatar
+              username: artistData.username || 'Unknown Artist',
+              avatar: artistData.avatar
             };
           }
           
@@ -95,16 +102,41 @@ const ArtworkDetail = () => {
           // Fetch comments
           const { data: commentsData, error: commentsError } = await supabase
             .from('comments')
-            .select(`
-              *,
-              profiles:user_id (username, avatar)
-            `)
+            .select('*')
             .eq('artwork_id', id)
             .order('created_at', { ascending: false });
             
           if (commentsError) throw commentsError;
           
-          setComments(commentsData || []);
+          // Fetch user data for each comment
+          const commentsWithUsers = await Promise.all((commentsData || []).map(async (comment) => {
+            const { data: userData, error: userError } = await supabase
+              .from('profiles')
+              .select('username, avatar')
+              .eq('id', comment.user_id)
+              .single();
+              
+            if (userError) {
+              console.error("Error fetching comment user data:", userError);
+              return {
+                ...comment,
+                user: {
+                  username: 'Anonymous',
+                  avatar: null
+                }
+              };
+            }
+            
+            return {
+              ...comment,
+              user: {
+                username: userData.username || 'Anonymous',
+                avatar: userData.avatar
+              }
+            };
+          }));
+          
+          setComments(commentsWithUsers || []);
         }
       } catch (error) {
         console.error("Error fetching artwork:", error);
@@ -178,9 +210,9 @@ const ArtworkDetail = () => {
     userId: comment.user_id,
     text: comment.text,
     createdAt: comment.created_at,
-    user: comment.profiles ? {
-      username: comment.profiles.username || 'Anonymous',
-      avatar: comment.profiles.avatar
+    user: comment.user ? {
+      username: comment.user.username || 'Anonymous',
+      avatar: comment.user.avatar
     } : undefined
   }));
   
@@ -207,12 +239,24 @@ const ArtworkDetail = () => {
         </div>
         
         <div className="space-y-6">
-          <ArtworkHeader artwork={artwork as any} />
+          <ArtworkHeader 
+            artistId={artwork.artistId} 
+            createdAt={artwork.createdAt} 
+          />
           
-          <ArtworkContent artwork={artwork as any} />
+          <ArtworkContent 
+            title={artwork.title}
+            description={artwork.description}
+            artistId={artwork.artistId}
+            artistName={artwork.artist?.username || "Unknown Artist"}
+            tags={artwork.tags}
+          />
           
           <div className="flex justify-between items-center">
-            <ArtworkActions artwork={artwork as any} />
+            <ArtworkActions 
+              artworkId={artwork.id}
+              likesCount={artwork.likes}
+            />
             
             {currentUser?.id === artwork.artistId && (
               <Button variant="outline" onClick={() => navigate(`/edit/${artwork.id}`)}>

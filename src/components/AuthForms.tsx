@@ -1,415 +1,258 @@
-
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
-import { useAuthStore } from "@/lib/store";
-import { AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 const AuthForms = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login, register, isAuthenticated } = useAuthStore();
+  const { register, login, isLoading, error } = useAuthStore();
   
-  // Check if we should default to register tab
-  const queryParams = new URLSearchParams(location.search);
-  const defaultTab = queryParams.get("register") ? "register" : "login";
-  
-  const [activeTab, setActiveTab] = useState(defaultTab);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Login form state
-  const [loginData, setLoginData] = useState({
-    email: "",
-    password: "",
-  });
-  
-  // Register form state
   const [registerData, setRegisterData] = useState({
     username: "",
     email: "",
     password: "",
     confirmPassword: "",
-    role: "visitor" as "visitor" | "artist" | "admin",
+    role: "visitor",
   });
   
-  // Form errors
-  const [loginError, setLoginError] = useState("");
-  const [registerError, setRegisterError] = useState("");
-  const [connectionError, setConnectionError] = useState(false);
+  const [loginData, setLoginData] = useState({
+    email: "",
+    password: "",
+  });
   
-  // Redirect authenticated users
-  useEffect(() => {
-    if (isAuthenticated) {
-      console.log("AuthForms: User is authenticated, redirecting to home page");
-      navigate("/");
-    }
-  }, [isAuthenticated, navigate]);
+  const [isRegistering, setIsRegistering] = useState(false);
   
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError("");
-    setConnectionError(false);
-    setIsLoading(true);
-    
-    const { email, password } = loginData;
-    
-    if (!email || !password) {
-      setLoginError("Please fill in all fields");
-      setIsLoading(false);
-      return;
-    }
-    
-    try {
-      console.log("Attempting login with:", { email });
-      const success = await login(email, password);
-      
-      if (success) {
-        console.log("Login successful");
-        toast.success("Login successful!");
-        navigate("/"); // Explicit navigation
-      } else {
-        console.error("Login failed without throwing an error");
-        setLoginError("Invalid email or password");
-      }
-    } catch (error: any) {
-      console.error("Login error:", error);
-      if (error.message?.includes("Load failed")) {
-        setConnectionError(true);
-        toast.error("Cannot connect to authentication service. Please check your internet connection and try again.");
-      } else if (error.message?.includes("invalid_credentials") || error.code === "invalid_credentials") {
-        setLoginError("Invalid email or password");
-      } else {
-        setLoginError(error.message || "An unexpected error occurred");
-      }
-    } finally {
-      setIsLoading(false);
-    }
+  const handleRegisterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRegisterData({ ...registerData, [e.target.name]: e.target.value });
+  };
+  
+  const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLoginData({ ...loginData, [e.target.name]: e.target.value });
   };
   
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setRegisterError("");
-    setConnectionError(false);
-    setIsLoading(true);
     
-    const { username, email, password, confirmPassword, role } = registerData;
-    
-    if (!username || !email || !password || !confirmPassword) {
-      setRegisterError("Please fill in all fields");
-      setIsLoading(false);
+    // Validate form
+    if (!registerData.username.trim()) {
+      toast.error("Username is required");
       return;
     }
     
-    if (password !== confirmPassword) {
-      setRegisterError("Passwords do not match");
-      setIsLoading(false);
+    if (!registerData.email.trim()) {
+      toast.error("Email is required");
       return;
     }
     
-    if (password.length < 6) {
-      setRegisterError("Password must be at least 6 characters");
-      setIsLoading(false);
+    if (!registerData.password.trim()) {
+      toast.error("Password is required");
       return;
     }
     
+    if (registerData.password !== registerData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    
+    // Register user
     try {
-      console.log("Registering with data:", { username, email, role });
-      
-      // Register the user with improved error handling
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username,
-            role
-          }
-        }
+      await register({
+        username: registerData.username,
+        email: registerData.email,
+        password: registerData.password,
+        role: registerData.role,
       });
       
-      if (error) {
-        console.error("Registration error from Supabase:", error);
-        throw error;
-      }
+      // Redirect to profile page after successful registration
+      navigate("/profile");
+    } catch (error) {
+      // Error is handled by the store
+    }
+  };
+  
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate form
+    if (!loginData.email.trim()) {
+      toast.error("Email is required");
+      return;
+    }
+    
+    if (!loginData.password.trim()) {
+      toast.error("Password is required");
+      return;
+    }
+    
+    // Login user
+    try {
+      await login(loginData.email, loginData.password);
       
-      if (data.user) {
-        console.log("User created successfully:", data.user.id);
-        
-        // Explicitly create the profile with retries
-        let profileCreated = false;
-        let attempts = 0;
-        
-        while (!profileCreated && attempts < 3) {
-          attempts++;
-          console.log(`Attempt ${attempts} to create profile for user ${data.user.id}`);
-          
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              username,
-              role,
-              created_at: new Date().toISOString()
-            });
-          
-          if (profileError) {
-            console.error(`Profile creation error (attempt ${attempts}):`, profileError);
-            // Wait a bit before retry
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            console.log("Profile created successfully");
-            profileCreated = true;
-          }
-        }
-        
-        // If we have a session, update auth store
-        if (data.session) {
-          console.log("Session available after registration, trying auto-login");
-          try {
-            const success = await login(email, password);
-            if (success) {
-              console.log("Auto-login after registration successful");
-              toast.success("Registration successful!");
-              navigate("/"); // Explicitly navigate here to ensure redirection
-              return;
-            }
-          } catch (loginErr) {
-            console.error("Auto-login after registration failed:", loginErr);
-          }
-        }
-        
-        // If we reach here, either there was no session or auto-login failed
-        toast.success("Registration successful! Please log in now.");
-        setActiveTab("login");
-        // Clear the registration form
-        setRegisterData({
-          username: "",
-          email: "",
-          password: "",
-          confirmPassword: "",
-          role: "visitor"
-        });
-      } else {
-        console.error("Registration failed: No user data returned");
-        setRegisterError("Registration failed. Please try again.");
-      }
-    } catch (error: any) {
-      console.error("Registration error:", error);
-      if (error.message?.includes("Load failed")) {
-        setConnectionError(true);
-        toast.error("Cannot connect to authentication service. Please check your internet connection and try again.");
-      } else if (error.message?.includes("User already registered")) {
-        setRegisterError("This email is already registered. Please log in instead.");
-      } else {
-        setRegisterError(error.message || "An unexpected error occurred");
-      }
-    } finally {
-      setIsLoading(false);
+      // Redirect to profile page after successful login
+      navigate("/profile");
+    } catch (error) {
+      // Error is handled by the store
     }
   };
   
   return (
-    <div className="max-w-md mx-auto px-4 py-12">
-      {connectionError && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-          <div className="flex items-start">
-            <AlertCircle className="text-red-500 mr-2 h-5 w-5 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-medium text-red-800">Connection Error</h3>
-              <p className="text-sm text-red-700 mt-1">
-                Cannot connect to authentication service. Please check your internet connection and try again.
-              </p>
-              <p className="text-sm text-red-700 mt-1">
-                If the problem persists, the service might be down or experiencing issues.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Login</TabsTrigger>
-          <TabsTrigger value="register">Register</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="login">
-          <Card>
-            <CardHeader>
-              <CardTitle>Login</CardTitle>
-              <CardDescription>
-                Sign in to your ArtVerse account
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={handleLoginSubmit}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-md mx-auto">
+        <Card>
+          <CardHeader className="text-center">
+            <h1 className="text-2xl font-bold">
+              {isRegistering ? "Create an account" : "Welcome back"}
+            </h1>
+          </CardHeader>
+          
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="rounded-md bg-red-100 p-4">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+            
+            {isRegistering ? (
+              <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="register-username">Username</Label>
                   <Input
-                    id="email"
+                    type="text"
+                    id="register-username"
+                    name="username"
+                    value={registerData.username}
+                    onChange={handleRegisterChange}
+                    placeholder="Enter your username"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="register-email">Email</Label>
+                  <Input
                     type="email"
-                    placeholder="your@email.com"
-                    value={loginData.email}
-                    onChange={(e) => 
-                      setLoginData({ ...loginData, email: e.target.value })
-                    }
+                    id="register-email"
+                    name="email"
+                    value={registerData.email}
+                    onChange={handleRegisterChange}
+                    placeholder="Enter your email"
+                    required
                     disabled={isLoading}
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <a href="#" className="text-sm text-blue-500 hover:underline">
-                      Forgot password?
-                    </a>
-                  </div>
+                <div>
+                  <Label htmlFor="register-password">Password</Label>
                   <Input
-                    id="password"
                     type="password"
-                    value={loginData.password}
-                    onChange={(e) => 
-                      setLoginData({ ...loginData, password: e.target.value })
-                    }
+                    id="register-password"
+                    name="password"
+                    value={registerData.password}
+                    onChange={handleRegisterChange}
+                    placeholder="Enter your password"
+                    required
                     disabled={isLoading}
                   />
                 </div>
                 
-                {loginError && (
-                  <p className="text-red-500 text-sm">{loginError}</p>
-                )}
-              </CardContent>
-              
-              <CardFooter>
+                <div>
+                  <Label htmlFor="register-confirm-password">Confirm Password</Label>
+                  <Input
+                    type="password"
+                    id="register-confirm-password"
+                    name="confirmPassword"
+                    value={registerData.confirmPassword}
+                    onChange={handleRegisterChange}
+                    placeholder="Confirm your password"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="register-role">Role</Label>
+                  <select
+                    id="register-role"
+                    name="role"
+                    value={registerData.role}
+                    onChange={handleRegisterChange}
+                    className="w-full rounded-md border border-gray-200 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isLoading}
+                  >
+                    <option value="visitor">Visitor</option>
+                    <option value="artist">Artist</option>
+                  </select>
+                </div>
+                
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Creating account..." : "Create account"}
+                </Button>
+                
+                <div className="text-center">
+                  <button
+                    type="button"
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                    onClick={() => setIsRegistering(false)}
+                    disabled={isLoading}
+                  >
+                    Already have an account? Login
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="login-email">Email</Label>
+                  <Input
+                    type="email"
+                    id="login-email"
+                    name="email"
+                    value={loginData.email}
+                    onChange={handleLoginChange}
+                    placeholder="Enter your email"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="login-password">Password</Label>
+                  <Input
+                    type="password"
+                    id="login-password"
+                    name="password"
+                    value={loginData.password}
+                    onChange={handleLoginChange}
+                    placeholder="Enter your password"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Logging in..." : "Login"}
                 </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="register">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create an account</CardTitle>
-              <CardDescription>
-                Join ArtVerse to discover and share amazing artworks
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={handleRegisterSubmit}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    placeholder="username"
-                    value={registerData.username}
-                    onChange={(e) => 
-                      setRegisterData({ ...registerData, username: e.target.value })
-                    }
-                    disabled={isLoading}
-                  />
-                </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="register-email">Email</Label>
-                  <Input
-                    id="register-email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={registerData.email}
-                    onChange={(e) => 
-                      setRegisterData({ ...registerData, email: e.target.value })
-                    }
-                    disabled={isLoading}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="register-password">Password</Label>
-                  <Input
-                    id="register-password"
-                    type="password"
-                    value={registerData.password}
-                    onChange={(e) => 
-                      setRegisterData({ ...registerData, password: e.target.value })
-                    }
-                    disabled={isLoading}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    value={registerData.confirmPassword}
-                    onChange={(e) => 
-                      setRegisterData({ ...registerData, confirmPassword: e.target.value })
-                    }
-                    disabled={isLoading}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="role">I am a...</Label>
-                  <Select
-                    value={registerData.role}
-                    onValueChange={(value: "visitor" | "artist" | "admin") => 
-                      setRegisterData({ ...registerData, role: value })
-                    }
+                <div className="text-center">
+                  <button
+                    type="button"
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                    onClick={() => setIsRegistering(true)}
                     disabled={isLoading}
                   >
-                    <SelectTrigger id="role">
-                      <SelectValue placeholder="Select your role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="visitor">Art Enthusiast</SelectItem>
-                      <SelectItem value="artist">Artist</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    Don't have an account? Register
+                  </button>
                 </div>
-                
-                {registerError && (
-                  <p className="text-red-500 text-sm">{registerError}</p>
-                )}
-              </CardContent>
-              
-              <CardFooter>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Registering..." : "Register"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
