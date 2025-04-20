@@ -3,6 +3,8 @@ import { User, Artwork } from '@/types';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+type UserRole = 'visitor' | 'artist' | 'admin';
+
 interface AuthState {
   currentUser: User | null;
   isAuthenticated: boolean;
@@ -52,7 +54,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             username: userData.username,
             email: userData.email,
             password: userData.password,
-            role: userData.role as 'visitor' | 'artist' | 'admin', // Cast to the correct type
+            role: userData.role as UserRole,
             createdAt: new Date().toISOString(),
             likedArtworks: [],
           },
@@ -89,7 +91,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           throw new Error(profileError.message);
         }
 
-        const userRole = profileData?.role as 'visitor' | 'artist' | 'admin' || 'visitor'; // Cast to the correct type
+        const userRole = (profileData?.role || 'visitor') as UserRole;
 
         const user: User = {
           id: data.user.id,
@@ -184,12 +186,14 @@ export const initializeAuth = async () => {
       throw new Error(profileError.message);
     }
 
+    const userRole = (profileData?.role || 'visitor') as UserRole;
+
     const user: User = {
       id: session.user.id,
       username: profileData?.username || session.user.email?.split('@')[0] || 'Unknown',
       email: session.user.email || '',
       password: '',
-      role: profileData?.role || 'visitor',
+      role: userRole,
       createdAt: new Date().toISOString(),
       likedArtworks: [],
       avatar: profileData?.avatar || null,

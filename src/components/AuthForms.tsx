@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/lib/store";
@@ -6,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
+
+type UserRole = "visitor" | "artist" | "admin";
 
 const AuthForms = () => {
   const navigate = useNavigate();
@@ -16,7 +19,7 @@ const AuthForms = () => {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "visitor",
+    role: "visitor" as UserRole,
   });
   
   const [loginData, setLoginData] = useState({
@@ -26,7 +29,7 @@ const AuthForms = () => {
   
   const [isRegistering, setIsRegistering] = useState(false);
   
-  const handleRegisterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRegisterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setRegisterData({ ...registerData, [e.target.name]: e.target.value });
   };
   
