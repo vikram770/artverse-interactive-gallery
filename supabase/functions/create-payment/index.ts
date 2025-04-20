@@ -9,7 +9,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -17,14 +16,14 @@ serve(async (req) => {
   try {
     const { artworkId } = await req.json();
     
-    // Initialize Stripe
     const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2023-10-16',
     });
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false } }
     );
 
     // Get artwork details
@@ -38,16 +37,19 @@ serve(async (req) => {
       throw new Error('Artwork not found');
     }
 
-    // Create Stripe session with expanded payment method options
+    // Get authenticated user
+    const authHeader = req.headers.get('Authorization');
+    let userId = null;
+    
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabaseClient.auth.getUser(token);
+      userId = user?.id;
+    }
+
+    // Create Stripe session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: [
-        'card',
-        'google_pay',
-        'link',
-        'us_bank_account',
-        'cashapp',
-        'alipay'
-      ],
+      payment_method_types: ['card'],
       line_items: [
         {
           price_data: {
@@ -64,12 +66,18 @@ serve(async (req) => {
       mode: 'payment',
       success_url: `${req.headers.get('origin')}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get('origin')}/artwork/${artworkId}`,
-      payment_method_options: {
-        card: {
-          setup_future_usage: 'off',
-        },
-      },
     });
+
+    // Create order record
+    if (userId) {
+      await supabaseClient.from('orders').insert({
+        user_id: userId,
+        artwork_id: artworkId,
+        amount: Math.round(artwork.price * 100),
+        stripe_session_id: session.id,
+        status: 'pending'
+      });
+    }
 
     return new Response(
       JSON.stringify({ sessionId: session.id, url: session.url }),
