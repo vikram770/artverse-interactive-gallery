@@ -11,16 +11,18 @@ import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
 
 const App = () => {
   return (
-    <Routes>
-      <Route path="/" element={<Index />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/profile" element={<ProfilePage />} />
-      <Route path="/upload" element={<UploadPage />} />
-      <Route path="/artwork/:id" element={<ArtworkPage />} />
-      <Route path="/edit/:id" element={<EditArtworkPage />} />
-      <Route path="*" element={<NotFound />} />
-      <Route path="/payment/success" element={<PaymentSuccessPage />} />
-    </Routes>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/upload" element={<UploadPage />} />
+        <Route path="/artwork/:id" element={<ArtworkPage />} />
+        <Route path="/edit/:id" element={<EditArtworkPage />} />
+        <Route path="*" element={<NotFound />} />
+        <Route path="/payment/success" element={<PaymentSuccessPage />} />
+      </Routes>
+    </Router>
   );
 };
 
