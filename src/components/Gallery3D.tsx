@@ -84,7 +84,7 @@ const Gallery3D = ({ artworks }: Gallery3DProps) => {
     scene.add(rightWall);
     
     // Artwork frames
-    const artworkObjects: THREE.Mesh[] = [];
+    const artworkObjects: THREE.Object3D[] = [];
     const textureLoader = new THREE.TextureLoader();
     
     const frameGeometry = new THREE.BoxGeometry(0.1, 2, 2);
@@ -129,7 +129,7 @@ const Gallery3D = ({ artworks }: Gallery3DProps) => {
       (group as any).userData = { artworkId: artwork.id };
       
       scene.add(group);
-      artworkObjects.push(group as THREE.Mesh);
+      artworkObjects.push(group);
     }
     
     // Raycaster for interaction
@@ -196,11 +196,30 @@ const Gallery3D = ({ artworks }: Gallery3DProps) => {
       
       // Dispose geometries and materials
       artworkObjects.forEach(obj => {
-        if (obj.geometry) obj.geometry.dispose();
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach(material => material.dispose());
-        } else if (obj.material) {
-          obj.material.dispose();
+        // Check if the object is a Mesh before trying to dispose its geometry and material
+        if ((obj as THREE.Mesh).isMesh) {
+          const mesh = obj as THREE.Mesh;
+          if (mesh.geometry) mesh.geometry.dispose();
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(material => material.dispose());
+          } else if (mesh.material) {
+            mesh.material.dispose();
+          }
+        }
+        
+        // If it's a group, traverse its children to dispose materials and geometries
+        if (obj.type === 'Group') {
+          obj.traverse(child => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              if (mesh.geometry) mesh.geometry.dispose();
+              if (Array.isArray(mesh.material)) {
+                mesh.material.forEach(material => material.dispose());
+              } else if (mesh.material) {
+                mesh.material.dispose();
+              }
+            }
+          });
         }
       });
     };
