@@ -8,7 +8,7 @@ import {
   CreditCard, 
   Globe, 
   Smartphone,
-  Ban,  // Replace Bank with Ban
+  Ban,
   ChevronDown
 } from "lucide-react";
 import {
@@ -17,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuthStore } from "@/lib/store";
 
 interface PaymentButtonProps {
   artworkId: string;
@@ -25,23 +26,54 @@ interface PaymentButtonProps {
 
 const PaymentButton = ({ artworkId, price }: PaymentButtonProps) => {
   const [loading, setLoading] = useState(false);
+  const { currentUser } = useAuthStore();
 
   const handlePayment = async () => {
+    if (!artworkId) {
+      toast.error('Missing artwork information');
+      return;
+    }
+    
     try {
       setLoading(true);
       
+      // Add a validation check for the price
+      if (isNaN(Number(price)) || Number(price) <= 0) {
+        throw new Error('Invalid price for this artwork');
+      }
+      
+      // Add a timeout to prevent infinite loading if there's a network issue
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+        toast.error('Payment request timed out. Please try again.');
+      }, 15000);
+      
+      // Include auth token if user is logged in
+      const options = currentUser ? {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      } : undefined;
+      
+      // Call the payment function
       const { data, error } = await supabase.functions.invoke('create-payment', {
-        body: { artworkId }
+        body: { artworkId },
+        ...options
       });
+
+      clearTimeout(timeoutId);
 
       if (error) throw error;
       
       if (data?.url) {
+        // Redirect to Stripe checkout 
         window.location.href = data.url;
+      } else {
+        throw new Error('No checkout URL received from payment service');
       }
     } catch (error) {
       console.error('Payment error:', error);
-      toast.error('Failed to initiate payment');
+      toast.error(error.message || 'Failed to initiate payment');
     } finally {
       setLoading(false);
     }
@@ -59,7 +91,7 @@ const PaymentButton = ({ artworkId, price }: PaymentButtonProps) => {
           <span>Google Pay</span>
         </div>
         <div className="flex items-center">
-          <Ban className="w-4 h-4 mr-1" />  {/* Changed from Bank to Ban */}
+          <Ban className="w-4 h-4 mr-1" />
           <span>Net Banking</span>
         </div>
       </div>
@@ -77,30 +109,30 @@ const PaymentButton = ({ artworkId, price }: PaymentButtonProps) => {
               </>
             ) : (
               <>
-                Buy Now - ${price}
+                Buy Now - ${typeof price === 'number' ? price.toFixed(2) : price}
                 <ChevronDown className="ml-2 h-4 w-4" />
               </>
             )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-[200px]">
-          <DropdownMenuItem className="flex items-center" onClick={handlePayment}>
+          <DropdownMenuItem className="flex items-center" onClick={handlePayment} disabled={loading}>
             <CreditCard className="mr-2 h-4 w-4" />
             <span>Credit Card</span>
           </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center" onClick={handlePayment}>
+          <DropdownMenuItem className="flex items-center" onClick={handlePayment} disabled={loading}>
             <CreditCard className="mr-2 h-4 w-4" />
             <span>Visa Card</span>
           </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center" onClick={handlePayment}>
+          <DropdownMenuItem className="flex items-center" onClick={handlePayment} disabled={loading}>
             <Smartphone className="mr-2 h-4 w-4" />
             <span>Google Pay</span>
           </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center" onClick={handlePayment}>
-            <Ban className="mr-2 h-4 w-4" />  {/* Changed from Bank to Ban */}
+          <DropdownMenuItem className="flex items-center" onClick={handlePayment} disabled={loading}>
+            <Ban className="mr-2 h-4 w-4" />
             <span>Net Banking</span>
           </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center" onClick={handlePayment}>
+          <DropdownMenuItem className="flex items-center" onClick={handlePayment} disabled={loading}>
             <Globe className="mr-2 h-4 w-4" />
             <span>Bank Transfer</span>
           </DropdownMenuItem>

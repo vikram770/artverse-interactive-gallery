@@ -14,27 +14,95 @@ serve(async (req) => {
   }
 
   try {
-    const { artworkId } = await req.json();
+    // Parse request body with proper error handling
+    let reqBody;
+    try {
+      reqBody = await req.json();
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: "Invalid request body" }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
     
-    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
+    const { artworkId } = reqBody;
+    
+    if (!artworkId) {
+      return new Response(
+        JSON.stringify({ error: "Missing artwork ID" }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+    
+    // Initialize Stripe with proper API version
+    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+    if (!stripeKey) {
+      return new Response(
+        JSON.stringify({ error: "Stripe configuration error" }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        }
+      );
+    }
+    
+    const stripe = new Stripe(stripeKey, {
       apiVersion: '2023-10-16',
     });
 
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(
+        JSON.stringify({ error: "Database configuration error" }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        }
+      );
+    }
+    
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      supabaseUrl,
+      supabaseServiceKey,
       { auth: { persistSession: false } }
     );
 
-    // Get artwork details
-    const { data: artwork } = await supabaseClient
+    // Get artwork details with error handling
+    const { data: artwork, error: artworkError } = await supabaseClient
       .from('artworks')
-      .select('title,price,image_url')
+      .select('title,price,image_url,artist_id')
       .eq('id', artworkId)
       .single();
 
-    if (!artwork) {
-      throw new Error('Artwork not found');
+    if (artworkError || !artwork) {
+      return new Response(
+        JSON.stringify({ error: "Artwork not found" }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404,
+        }
+      );
+    }
+
+    // Validate artwork price to ensure it's a valid number
+    const price = Number(artwork.price);
+    if (isNaN(price) || price <= 0) {
+      return new Response(
+        JSON.stringify({ error: "Invalid artwork price" }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
     }
 
     // Get authenticated user
@@ -42,12 +110,35 @@ serve(async (req) => {
     let userId = null;
     
     if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user } } = await supabaseClient.auth.getUser(token);
-      userId = user?.id;
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
+        
+        if (userError || !user) {
+          console.error("Auth error:", userError);
+          // We don't return an error here, as we support guest checkout
+        } else {
+          userId = user.id;
+        }
+      } catch (authError) {
+        console.error("Auth verification error:", authError);
+        // Continue with guest checkout
+      }
     }
 
-    // Create Stripe session
+    // Secure origin URL for redirects
+    const origin = req.headers.get('origin');
+    if (!origin) {
+      return new Response(
+        JSON.stringify({ error: "Missing origin header" }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+
+    // Create Stripe session with proper security settings
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -56,27 +147,43 @@ serve(async (req) => {
             currency: 'usd',
             product_data: {
               name: artwork.title,
-              images: [artwork.image_url],
+              images: artwork.image_url ? [artwork.image_url] : [],
+              description: `Art purchase from gallery`,
             },
-            unit_amount: Math.round(artwork.price * 100), // Convert to cents
+            unit_amount: Math.round(price * 100), // Convert to cents
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
-      success_url: `${req.headers.get('origin')}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.get('origin')}/artwork/${artworkId}`,
+      success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/artwork/${artworkId}`,
+      client_reference_id: artworkId,
+      payment_intent_data: {
+        metadata: {
+          artwork_id: artworkId,
+          user_id: userId || 'guest',
+        },
+      },
     });
 
-    // Create order record
-    if (userId) {
+    // Create order record with appropriate validation
+    try {
       await supabaseClient.from('orders').insert({
         user_id: userId,
         artwork_id: artworkId,
-        amount: Math.round(artwork.price * 100),
+        artist_id: artwork.artist_id,
+        amount: Math.round(price * 100),
         stripe_session_id: session.id,
-        status: 'pending'
+        status: 'pending',
+        payment_method: 'card',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
+    } catch (orderError) {
+      console.error("Failed to create order record:", orderError);
+      // We proceed even if the order creation fails, as the payment can still be processed
+      // The success page will handle reconciliation
     }
 
     return new Response(
@@ -87,11 +194,12 @@ serve(async (req) => {
       }
     );
   } catch (error) {
+    console.error("Payment processing error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || "Payment processing failed" }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 500,
       }
     );
   }
