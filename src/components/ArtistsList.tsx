@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Artist, User } from "@/types";
+import { User } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useGalleryStore } from "@/lib/store";
 import { Users } from "lucide-react";
@@ -9,9 +9,21 @@ import FollowButton from "./buttons/FollowButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useFollows } from "@/hooks/useFollows";
 
+// Define a simpler interface for artist profiles from the database
+interface ArtistProfile {
+  id: string;
+  username: string | null;
+  avatar: string | null;
+  bio: string | null;
+  role: string;
+  email?: string;
+  artworks: string[];
+  createdAt: string;
+}
+
 const ArtistsList = () => {
   const { artworks } = useGalleryStore();
-  const [artists, setArtists] = useState<Artist[]>([]);
+  const [artists, setArtists] = useState<ArtistProfile[]>([]);
   const { getFollowerCount } = useFollows();
   const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({});
   
@@ -29,7 +41,7 @@ const ArtistsList = () => {
         
         if (artistProfiles) {
           // Map artists to include their artwork counts
-          const artistsWithData = artistProfiles.map((artist: any) => {
+          const artistsWithData: ArtistProfile[] = artistProfiles.map((artist: any) => {
             const artistArtworks = artworks.filter(
               artwork => artwork.artistId === artist.id
             );
@@ -40,16 +52,13 @@ const ArtistsList = () => {
               avatar: artist.avatar,
               bio: artist.bio,
               role: artist.role,
-              email: '', // Not exposing email in list view
               artworks: artistArtworks.map(art => art.id),
               createdAt: artist.created_at
             };
           });
           
           // Sort by artwork count (most prolific first)
-          artistsWithData.sort((a: Artist, b: Artist) => 
-            b.artworks.length - a.artworks.length
-          );
+          artistsWithData.sort((a, b) => b.artworks.length - a.artworks.length);
           
           setArtists(artistsWithData);
           
@@ -78,9 +87,9 @@ const ArtistsList = () => {
             <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
               <div className="flex items-center gap-4 mb-4">
                 <Avatar className="w-16 h-16">
-                  <AvatarImage src={artist.avatar} alt={artist.username} />
+                  <AvatarImage src={artist.avatar || undefined} alt={artist.username || undefined} />
                   <AvatarFallback className="text-lg">
-                    {artist.username.slice(0, 2).toUpperCase()}
+                    {artist.username ? artist.username.slice(0, 2).toUpperCase() : 'AR'}
                   </AvatarFallback>
                 </Avatar>
                 
