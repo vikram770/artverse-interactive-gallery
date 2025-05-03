@@ -4,39 +4,69 @@ import { Link } from "react-router-dom";
 import { Artist, User } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useGalleryStore } from "@/lib/store";
+import { Users } from "lucide-react";
+import FollowButton from "./buttons/FollowButton";
+import { supabase } from "@/integrations/supabase/client";
+import { useFollows } from "@/hooks/useFollows";
 
 const ArtistsList = () => {
   const { artworks } = useGalleryStore();
   const [artists, setArtists] = useState<Artist[]>([]);
+  const { getFollowerCount } = useFollows();
+  const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({});
   
   useEffect(() => {
-    // Load artists from localStorage
-    const loadArtists = () => {
-      const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-      const artistUsers = storedUsers.filter((user: User) => user.role === 'artist');
-      
-      // Map artists to include their artwork counts
-      const artistsWithArtworks = artistUsers.map((artist: Artist) => {
-        const artistArtworks = artworks.filter(
-          artwork => artwork.artistId === artist.id
-        );
+    // Load artists from Supabase
+    const loadArtists = async () => {
+      try {
+        // Get all profiles with role 'artist'
+        const { data: artistProfiles, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'artist');
         
-        return {
-          ...artist,
-          artworks: artistArtworks.map(art => art.id)
-        };
-      });
-      
-      // Sort by artwork count (most prolific first)
-      artistsWithArtworks.sort((a: Artist, b: Artist) => 
-        b.artworks.length - a.artworks.length
-      );
-      
-      setArtists(artistsWithArtworks);
+        if (error) throw error;
+        
+        if (artistProfiles) {
+          // Map artists to include their artwork counts
+          const artistsWithData = artistProfiles.map((artist: any) => {
+            const artistArtworks = artworks.filter(
+              artwork => artwork.artistId === artist.id
+            );
+            
+            return {
+              id: artist.id,
+              username: artist.username || 'Unknown Artist',
+              avatar: artist.avatar,
+              bio: artist.bio,
+              role: artist.role,
+              email: '', // Not exposing email in list view
+              artworks: artistArtworks.map(art => art.id),
+              createdAt: artist.created_at
+            };
+          });
+          
+          // Sort by artwork count (most prolific first)
+          artistsWithData.sort((a: Artist, b: Artist) => 
+            b.artworks.length - a.artworks.length
+          );
+          
+          setArtists(artistsWithData);
+          
+          // Load follower counts for each artist
+          const counts: Record<string, number> = {};
+          for (const artist of artistsWithData) {
+            counts[artist.id] = await getFollowerCount(artist.id);
+          }
+          setFollowerCounts(counts);
+        }
+      } catch (err) {
+        console.error("Error loading artists:", err);
+      }
     };
     
     loadArtists();
-  }, [artworks]);
+  }, [artworks, getFollowerCount]);
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -54,11 +84,20 @@ const ArtistsList = () => {
                   </AvatarFallback>
                 </Avatar>
                 
-                <div>
+                <div className="flex-1">
                   <h2 className="text-xl font-semibold group-hover:text-gallery-accent transition-colors">
                     {artist.username}
                   </h2>
-                  <p className="text-gray-500">{artist.artworks.length} {artist.artworks.length === 1 ? 'artwork' : 'artworks'}</p>
+                  <div className="flex items-center gap-1 text-gray-500">
+                    <span>{artist.artworks.length} {artist.artworks.length === 1 ? 'artwork' : 'artworks'}</span>
+                    <span className="mx-1">•</span>
+                    <Users className="h-3 w-3" />
+                    <span>{followerCounts[artist.id] || 0} {followerCounts[artist.id] === 1 ? 'follower' : 'followers'}</span>
+                  </div>
+                </div>
+                
+                <div onClick={(e) => e.preventDefault()}>
+                  <FollowButton artistId={artist.id} />
                 </div>
               </div>
               

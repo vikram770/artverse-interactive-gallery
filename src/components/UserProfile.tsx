@@ -6,16 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ArtworkCard from "./ArtworkCard";
 import { Artwork } from "@/types";
-import { Heart, Image, MessageSquare, PlusCircle, LogOut, Bookmark } from "lucide-react";
+import { Heart, Image, MessageSquare, PlusCircle, LogOut, Bookmark, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useGalleryStore, useAuthStore } from "@/lib/store";
 import FavoritesGallery from "./favorites/FavoritesGallery";
+import FollowingList from "./following/FollowingList";
+import { useFollows } from "@/hooks/useFollows";
 
 const UserProfile = () => {
   const navigate = useNavigate();
   const { getArtworksByArtist, getUserLikedArtworks } = useGalleryStore();
   const { logout, currentUser } = useAuthStore();
+  const { followedArtists } = useFollows();
   
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -199,6 +202,11 @@ const UserProfile = () => {
                 <span>{favoritesCount} Favorites</span>
               </div>
               
+              <div className="flex items-center">
+                <Users className="mr-2 h-4 w-4 text-gray-500" />
+                <span>{followedArtists.length} Following</span>
+              </div>
+              
               {profile?.role === "artist" && (
                 <div className="flex items-center">
                   <Image className="mr-2 h-4 w-4 text-gray-500" />
@@ -231,15 +239,17 @@ const UserProfile = () => {
         </div>
         
         <Tabs defaultValue={profile?.role === "artist" ? "uploaded" : "favorites"}>
-          <TabsList className="w-full grid grid-cols-3">
+          <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="favorites">Favorites</TabsTrigger>
             <TabsTrigger value="liked">Liked</TabsTrigger>
+            <TabsTrigger value="following">Following</TabsTrigger>
             {(profile?.role === "artist" || profile?.role === "admin") && (
               <TabsTrigger value="uploaded">My Artworks</TabsTrigger>
             )}
           </TabsList>
           
           <FavoritesGallery />
+          <FollowingList />
           
           <TabsContent value="liked" className="py-6">
             {likedArtworks.length === 0 ? (

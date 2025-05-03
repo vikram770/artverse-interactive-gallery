@@ -127,6 +127,27 @@ export type Database = {
           },
         ]
       }
+      follows: {
+        Row: {
+          artist_id: string
+          created_at: string | null
+          follower_id: string
+          id: string
+        }
+        Insert: {
+          artist_id: string
+          created_at?: string | null
+          follower_id: string
+          id?: string
+        }
+        Update: {
+          artist_id?: string
+          created_at?: string | null
+          follower_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
       likes: {
         Row: {
           artwork_id: string | null
