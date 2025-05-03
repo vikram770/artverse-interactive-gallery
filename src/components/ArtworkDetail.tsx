@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import ArtworkZoom from "./artwork/ArtworkZoom";
 import ShareButtons from "./social/ShareButtons";
 import RelatedArtworks from "./artwork/RelatedArtworks";
+import FavoriteButton from "./buttons/FavoriteButton";
 
 interface ArtistInfo {
   username: string;
@@ -253,10 +254,16 @@ const ArtworkDetail = () => {
           />
           
           <div className="flex justify-between items-center">
-            <ArtworkActions 
-              artworkId={artwork.id}
-              likesCount={artwork.likes}
-            />
+            <div className="flex items-center gap-2">
+              <ArtworkActions 
+                artworkId={artwork.id}
+                likesCount={artwork.likes}
+              />
+              <FavoriteButton 
+                artworkId={artwork.id}
+                size="md"
+              />
+            </div>
             
             {currentUser?.id === artwork.artistId && (
               <Button variant="outline" onClick={() => navigate(`/edit/${artwork.id}`)}>

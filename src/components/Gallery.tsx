@@ -9,6 +9,8 @@ import AdvancedFilters from "./gallery/AdvancedFilters";
 import { useSortedArtworks } from "@/hooks/useSortedArtworks";
 import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
+import { useFavorites } from "@/hooks/useFavorites";
+import { Artwork } from "@/types";
 
 const Gallery = () => {
   const { 
@@ -19,12 +21,19 @@ const Gallery = () => {
   
   const [viewMode, setViewMode] = useState<"grid" | "feed">("feed");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const { sortedArtworks, sortBy, setSortBy } = useSortedArtworks(filteredArtworks);
+  const { favoriteIds } = useFavorites();
   
   useEffect(() => {
     // Initialize gallery data
     getArtworks();
   }, [getArtworks]);
+  
+  // Filter artworks by favorites if the option is selected
+  const displayedArtworks: Artwork[] = showFavoritesOnly 
+    ? sortedArtworks.filter(artwork => favoriteIds.includes(artwork.id))
+    : sortedArtworks;
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -35,6 +44,8 @@ const Gallery = () => {
             setViewMode={setViewMode} 
             sortBy={sortBy}
             setSortBy={setSortBy}
+            showFavoritesOnly={showFavoritesOnly}
+            setShowFavoritesOnly={setShowFavoritesOnly}
           />
           
           <Button
@@ -53,12 +64,15 @@ const Gallery = () => {
         {showAdvancedFilters && <AdvancedFilters />}
       </div>
       
-      {filteredArtworks.length === 0 ? (
-        <EmptyGalleryState onResetFilters={clearFilters} />
+      {displayedArtworks.length === 0 ? (
+        <EmptyGalleryState onResetFilters={() => {
+          clearFilters();
+          setShowFavoritesOnly(false);
+        }} />
       ) : (
         <GalleryViews 
           viewMode={viewMode} 
-          artworks={sortedArtworks} 
+          artworks={displayedArtworks} 
         />
       )}
     </div>

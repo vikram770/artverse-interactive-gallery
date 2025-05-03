@@ -98,6 +98,35 @@ export type Database = {
           },
         ]
       }
+      favorites: {
+        Row: {
+          artwork_id: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          artwork_id: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          artwork_id?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_favorites_artwork"
+            columns: ["artwork_id"]
+            isOneToOne: false
+            referencedRelation: "artworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       likes: {
         Row: {
           artwork_id: string | null

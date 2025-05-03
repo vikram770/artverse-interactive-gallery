@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Artwork } from "@/types";
 import { Link } from "react-router-dom";
@@ -7,6 +6,7 @@ import { useAuthStore, useGalleryStore } from "@/lib/store";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import FavoriteButton from "./buttons/FavoriteButton";
 
 interface ArtworkCardProps {
   artwork: Artwork;
@@ -90,12 +90,20 @@ const ArtworkCard = ({ artwork }: ArtworkCardProps) => {
             <Badge variant="outline" className="text-white border-white/30">
               {artwork.category}
             </Badge>
-            <button
-              className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-              onClick={handleLikeClick}
-            >
-              <Heart className={`h-5 w-5 ${isLiked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
-            </button>
+            <div className="flex gap-2">
+              <button
+                className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                onClick={handleLikeClick}
+              >
+                <Heart className={`h-5 w-5 ${isLiked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+              </button>
+              <FavoriteButton 
+                artworkId={artwork.id}
+                iconOnly
+                size="sm"
+                variant="ghost"
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -5,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ArtworkCard from "./ArtworkCard";
 import { Artwork } from "@/types";
-import { Heart, Image, MessageSquare, PlusCircle, LogOut } from "lucide-react";
+import { Heart, Image, MessageSquare, PlusCircle, LogOut, Bookmark } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useGalleryStore, useAuthStore } from "@/lib/store";
+import FavoritesGallery from "./favorites/FavoritesGallery";
 
 const UserProfile = () => {
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ const UserProfile = () => {
   const [loading, setLoading] = useState(true);
   const [userArtworks, setUserArtworks] = useState<Artwork[]>([]);
   const [likedArtworks, setLikedArtworks] = useState<Artwork[]>([]);
+  const [favoritesCount, setFavoritesCount] = useState(0);
   
   useEffect(() => {
     // Check current authentication status
@@ -112,6 +115,16 @@ const UserProfile = () => {
               setLikedArtworks(liked);
             }
           }
+          
+          // Get favorites count
+          const { count, error: countError } = await supabase
+            .from('favorites')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', currentUser.id);
+            
+          if (!countError && count !== null) {
+            setFavoritesCount(count);
+          }
         }
       } catch (error) {
         console.error("Auth check error:", error);
@@ -181,6 +194,11 @@ const UserProfile = () => {
                 <span>{likedArtworks.length} Likes</span>
               </div>
               
+              <div className="flex items-center">
+                <Bookmark className="mr-2 h-4 w-4 text-gray-500" />
+                <span>{favoritesCount} Favorites</span>
+              </div>
+              
               {profile?.role === "artist" && (
                 <div className="flex items-center">
                   <Image className="mr-2 h-4 w-4 text-gray-500" />
@@ -212,13 +230,16 @@ const UserProfile = () => {
           </div>
         </div>
         
-        <Tabs defaultValue={profile?.role === "artist" ? "uploaded" : "liked"}>
-          <TabsList className="w-full grid grid-cols-2">
-            <TabsTrigger value="liked">Liked Artworks</TabsTrigger>
+        <Tabs defaultValue={profile?.role === "artist" ? "uploaded" : "favorites"}>
+          <TabsList className="w-full grid grid-cols-3">
+            <TabsTrigger value="favorites">Favorites</TabsTrigger>
+            <TabsTrigger value="liked">Liked</TabsTrigger>
             {(profile?.role === "artist" || profile?.role === "admin") && (
               <TabsTrigger value="uploaded">My Artworks</TabsTrigger>
             )}
           </TabsList>
+          
+          <FavoritesGallery />
           
           <TabsContent value="liked" className="py-6">
             {likedArtworks.length === 0 ? (
