@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -42,41 +41,31 @@ const EditProfile = () => {
           console.error("Error fetching profile:", error);
           console.log("Current user ID:", currentUser.id);
           
-          // Check if auth user exists
-          const { data: authUser, error: authError } = await supabase.auth.getUser();
-            
-          if (authError) {
-            console.error("Error fetching auth user:", authError);
-            toast.error("Authentication error");
-            navigate("/login");
-            return;
-          }
+          // Initialize with user data from auth store
+          setFormData({
+            username: currentUser.username || currentUser.email?.split('@')[0] || "",
+            bio: currentUser.bio || "",
+            avatar: currentUser.avatar || "",
+          });
           
-          // If profile doesn't exist, initialize with user data
-          if (error.code === 'PGRST116' && authUser && authUser.user) {
-            setFormData({
+          setAvatarPreview(currentUser.avatar || null);
+          
+          // Create a profile if one doesn't exist
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: currentUser.id,
               username: currentUser.username || currentUser.email?.split('@')[0] || "",
-              bio: currentUser.bio || "",
-              avatar: currentUser.avatar || "",
+              role: currentUser.role || 'visitor',
+              avatar: currentUser.avatar || null,
+              bio: currentUser.bio || null
             });
-            
-            setAvatarPreview(currentUser.avatar || null);
-            
-            // Try to create a profile
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert({
-                id: currentUser.id,
-                username: currentUser.username || currentUser.email?.split('@')[0],
-                role: currentUser.role || 'visitor'
-              });
               
-            if (insertError) {
-              console.error("Error creating profile:", insertError);
-              // We can continue with form editing even if profile creation fails
-            }
+          if (insertError) {
+            console.error("Error creating profile:", insertError);
+            // We continue anyway - the profile might be created through RLS policies
           } else {
-            toast.error("Error fetching your profile");
+            toast.success("Created new profile");
           }
         } else if (profile) {
           setFormData({
@@ -143,17 +132,8 @@ const EditProfile = () => {
         }, { onConflict: 'id' });
       
       if (error) {
-        if (error.code === '23503') {
-          // Foreign key violation - update user state only
-          await updateUserProfile({
-            username: formData.username,
-            bio: formData.bio,
-            avatar: formData.avatar
-          });
-          toast.success("Profile updated locally (database sync will happen later)");
-        } else {
-          throw error;
-        }
+        console.error("Profile update error:", error);
+        toast.error("Error updating profile: " + error.message);
       } else {
         // Update the local user state
         await updateUserProfile({
@@ -163,9 +143,8 @@ const EditProfile = () => {
         });
         
         toast.success("Profile updated successfully");
+        navigate("/profile");
       }
-      
-      navigate("/profile");
     } catch (error: any) {
       console.error("Profile update error:", error);
       toast.error(error.message || "Error updating profile");
