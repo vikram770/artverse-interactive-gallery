@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ArtworkCard from "./ArtworkCard";
 import { Artwork } from "@/types";
-import { Heart, Image, MessageSquare, PlusCircle, LogOut, Bookmark, Users } from "lucide-react";
+import { Heart, Image, MessageSquare, PlusCircle, LogOut, Bookmark, Users, BarChart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useGalleryStore, useAuthStore } from "@/lib/store";
@@ -217,13 +217,23 @@ const UserProfile = () => {
             
             <div className="flex flex-wrap justify-center md:justify-start gap-2">
               {profile?.role === "artist" && (
-                <Button 
-                  onClick={() => navigate("/upload")}
-                  className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Upload New Artwork
-                </Button>
+                <>
+                  <Button 
+                    onClick={() => navigate("/upload")}
+                    className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Upload New Artwork
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => navigate("/dashboard")}
+                  >
+                    <BarChart className="mr-2 h-4 w-4" />
+                    Artist Dashboard
+                  </Button>
+                </>
               )}
               
               <Button variant="outline" onClick={() => navigate("/profile/edit")}>

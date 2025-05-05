@@ -14,6 +14,7 @@ import ArtistDetailPage from "@/pages/ArtistDetailPage";
 import EditProfilePage from "@/pages/EditProfilePage";
 import GalleryView3D from "@/pages/GalleryView3D";
 import ExhibitionDetailPage from "@/pages/ExhibitionDetailPage";
+import ArtistDashboardPage from "@/pages/ArtistDashboardPage";
 
 const App = () => {
   return (
@@ -32,6 +33,7 @@ const App = () => {
         <Route path="/exhibitions/:id" element={<ExhibitionDetailPage />} />
         <Route path="/gallery3d" element={<GalleryView3D />} />
         <Route path="/payment/success" element={<PaymentSuccessPage />} />
+        <Route path="/dashboard" element={<ArtistDashboardPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
