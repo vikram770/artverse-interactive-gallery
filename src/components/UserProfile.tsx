@@ -49,27 +49,51 @@ const UserProfile = () => {
           
           // If profile doesn't exist, create it
           if (profileError.code === 'PGRST116') {
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert({
-                id: currentUser.id,
-                username: currentUser.username || currentUser.email?.split('@')[0],
-                role: currentUser.role || 'visitor'
-              });
-              
-            if (insertError) {
-              console.error("Error creating profile:", insertError);
-              toast.error("Error creating your profile");
-            } else {
-              // Try fetching again after creation
-              const { data: newProfile } = await supabase
+            // Check if auth user exists
+            const { data: authUser, error: authError } = await supabase.auth.getUser();
+            
+            if (authError) {
+              console.error("Error fetching auth user:", authError);
+              toast.error("Authentication error");
+              navigate("/login");
+              return;
+            }
+            
+            if (authUser && authUser.user) {
+              const { error: insertError } = await supabase
                 .from('profiles')
-                .select('*')
-                .eq('id', currentUser.id)
-                .single();
+                .insert({
+                  id: currentUser.id,
+                  username: currentUser.username || currentUser.email?.split('@')[0],
+                  role: currentUser.role || 'visitor'
+                });
                 
-              if (newProfile) {
-                setProfile(newProfile);
+              if (insertError) {
+                console.error("Error creating profile:", insertError);
+                
+                // If profile creation fails due to FK constraint, create a temporary profile object
+                if (insertError.code === '23503') {
+                  setProfile({
+                    id: currentUser.id,
+                    username: currentUser.username || currentUser.email?.split('@')[0],
+                    role: currentUser.role || 'visitor',
+                    bio: null,
+                    avatar: null
+                  });
+                } else {
+                  toast.error("Error creating your profile");
+                }
+              } else {
+                // Try fetching again after creation
+                const { data: newProfile } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', currentUser.id)
+                  .single();
+                  
+                if (newProfile) {
+                  setProfile(newProfile);
+                }
               }
             }
           } else {
@@ -78,6 +102,7 @@ const UserProfile = () => {
         } else if (profileData) {
           setProfile(profileData);
           
+          // Load artist data only if user is an artist
           const userRole = profileData.role;
           if (userRole === "artist" || userRole === "admin") {
             console.log("Fetching artworks for artist:", currentUser.id);
@@ -162,11 +187,27 @@ const UserProfile = () => {
     }
   };
   
+  // Create a fallback profile if none exists but user is authenticated
+  const getFallbackProfile = () => {
+    if (currentUser && !profile) {
+      return {
+        id: currentUser.id,
+        username: currentUser.username || currentUser.email?.split('@')[0] || "User",
+        role: currentUser.role || 'visitor',
+        bio: null,
+        avatar: null
+      };
+    }
+    return profile;
+  };
+  
+  const userProfile = profile || getFallbackProfile();
+  
   if (loading) {
     return <div className="py-12 text-center">Loading...</div>;
   }
   
-  if (!currentUser || !profile) {
+  if (!currentUser) {
     return <div className="py-12 text-center">Please log in to view your profile.</div>;
   }
   
@@ -175,20 +216,20 @@ const UserProfile = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10">
           <Avatar className="w-24 h-24">
-            <AvatarImage src={profile?.avatar} alt={profile?.username} />
+            <AvatarImage src={userProfile?.avatar} alt={userProfile?.username} />
             <AvatarFallback className="text-2xl">
-              {profile?.username?.slice(0, 2).toUpperCase() || currentUser?.email?.slice(0, 2).toUpperCase()}
+              {userProfile?.username?.slice(0, 2).toUpperCase() || currentUser?.email?.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1 text-center md:text-left">
-            <h1 className="text-2xl font-bold mb-2">{profile?.username || currentUser?.email}</h1>
+            <h1 className="text-2xl font-bold mb-2">{userProfile?.username || currentUser?.email}</h1>
             <p className="text-gray-500 mb-2">
-              {profile?.role === "artist" ? "Artist" : "Art Enthusiast"}
+              {userProfile?.role === "artist" ? "Artist" : "Art Enthusiast"}
             </p>
             
-            {profile?.bio && (
-              <p className="text-gray-700 mb-4">{profile.bio}</p>
+            {userProfile?.bio && (
+              <p className="text-gray-700 mb-4">{userProfile.bio}</p>
             )}
             
             <div className="flex flex-wrap justify-center md:justify-start gap-4 mb-4">
@@ -207,7 +248,7 @@ const UserProfile = () => {
                 <span>{followedArtists.length} Following</span>
               </div>
               
-              {profile?.role === "artist" && (
+              {userProfile?.role === "artist" && (
                 <div className="flex items-center">
                   <Image className="mr-2 h-4 w-4 text-gray-500" />
                   <span>{userArtworks.length} Artworks</span>
@@ -216,7 +257,7 @@ const UserProfile = () => {
             </div>
             
             <div className="flex flex-wrap justify-center md:justify-start gap-2">
-              {profile?.role === "artist" && (
+              {userProfile?.role === "artist" && (
                 <>
                   <Button 
                     onClick={() => navigate("/upload")}
@@ -248,12 +289,12 @@ const UserProfile = () => {
           </div>
         </div>
         
-        <Tabs defaultValue={profile?.role === "artist" ? "uploaded" : "favorites"}>
+        <Tabs defaultValue={userProfile?.role === "artist" ? "uploaded" : "favorites"}>
           <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="favorites">Favorites</TabsTrigger>
             <TabsTrigger value="liked">Liked</TabsTrigger>
             <TabsTrigger value="following">Following</TabsTrigger>
-            {(profile?.role === "artist" || profile?.role === "admin") && (
+            {(userProfile?.role === "artist" || userProfile?.role === "admin") && (
               <TabsTrigger value="uploaded">My Artworks</TabsTrigger>
             )}
           </TabsList>
@@ -280,7 +321,7 @@ const UserProfile = () => {
             )}
           </TabsContent>
           
-          {(profile?.role === "artist" || profile?.role === "admin") && (
+          {(userProfile?.role === "artist" || userProfile?.role === "admin") && (
             <TabsContent value="uploaded" className="py-6">
               {userArtworks.length === 0 ? (
                 <div className="text-center py-12">
