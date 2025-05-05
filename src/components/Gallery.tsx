@@ -15,6 +15,7 @@ import { Artwork } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/lib/store";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CategoryList from "./gallery/CategoryList";
 
 const Gallery = () => {
   const { 
@@ -97,6 +98,8 @@ const Gallery = () => {
             {showAdvancedFilters ? "Hide Advanced Filters" : "Advanced Filters"}
           </Button>
         </div>
+        
+        <CategoryList />
         
         <GalleryFilters />
         
